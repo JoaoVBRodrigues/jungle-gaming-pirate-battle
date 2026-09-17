@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from "react";
 import { Application, Graphics } from "pixi.js";
 import type {
@@ -18,6 +19,7 @@ import { createFrontalProjectile } from "../systems/playerShooting";
 import { createBothLateralProjectiles } from "../systems/playerLateralShooting";
 import { updateProjectiles } from "../systems/projectileManager";
 import { updateEnemyPosition } from "../systems/enemyMovement";
+import { areEntitiesColliding } from "../systems/entityCollision";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -128,9 +130,17 @@ export function GameCanvas() {
 
       const chaserShip = new Graphics();
 
-      chaserShip.circle(0, 0, 18).fill({
-        color: 0xd94f4f,
-      });
+      function updateChaserAppearance(isColliding: boolean) {
+        chaserShip.clear();
+
+        chaserShip
+          .circle(0, 0, isColliding ? 24 : 18)
+          .fill({
+            color: isColliding ? 0xffcc00 : 0xd94f4f,
+          });
+      }
+
+      updateChaserAppearance(false);
 
       chaserShip.position.set(
         currentChaser.transform.position.x,
@@ -335,6 +345,17 @@ export function GameCanvas() {
           currentChaser.transform.position.x,
           currentChaser.transform.position.y,
         );
+
+        const isChaserColliding = areEntitiesColliding(
+          currentPlayer,
+          currentChaser,
+          {
+            playerRadius: 20,
+            enemyRadius: 18,
+          },
+        );
+
+        updateChaserAppearance(isChaserColliding);
 
         projectileCooldownRemaining = Math.max(
           0,
