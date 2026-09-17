@@ -69,3 +69,36 @@ export function calculateNextPlayerPosition(
             + player.velocity.y * deltaTimeSeconds,
     };
 }
+
+export function updatePlayerTransform(
+    player: PlayerEntity,
+    input: MovementInput,
+    deltaTimeSeconds: number,
+): PlayerEntity {
+    const velocity = calculatePlayerVelocity(player, input);
+
+    const playerWithVelocity = {
+        ...player,
+        velocity,
+    };
+
+    const nextPosition = calculateNextPlayerPosition(
+        playerWithVelocity,
+        deltaTimeSeconds,
+    );
+
+    const rotationDelta = calculatePlayerRotationDelta(
+        player,
+        input,
+        deltaTimeSeconds,
+    );
+
+    return {
+        ...player,
+        velocity,
+        transform: {
+            position: nextPosition,
+            rotation: player.transform.rotation + rotationDelta,
+        },
+    };
+}

@@ -5,6 +5,7 @@ import {
     calculatePlayerRotationDelta,
     calculatePlayerVelocity,
     type MovementInput,
+    updatePlayerTransform,
 } from './playerMovement';
 
 const player: PlayerEntity = {
@@ -126,5 +127,32 @@ describe('calculateNextPlayerPosition', () => {
             x: 0,
             y: 0,
         });
+    });
+});
+
+describe('updatePlayerTransform', () => {
+    it('updates position and rotation', () => {
+        const updatedPlayer = updatePlayerTransform(
+            player,
+            {
+                forward: true,
+                backward: false,
+                left: false,
+                right: true,
+            },
+            0.5,
+        );
+
+        expect(updatedPlayer.velocity).toEqual({
+            x: 0,
+            y: -100,
+        });
+
+        expect(updatedPlayer.transform.position).toEqual({
+            x: 0,
+            y: -50,
+        });
+
+        expect(updatedPlayer.transform.rotation).toBe(1);
     });
 });
