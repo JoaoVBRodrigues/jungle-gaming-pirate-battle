@@ -6,10 +6,7 @@ import {
   updatePlayerTransform,
   type MovementInput,
 } from "../systems/playerMovement";
-import {
-  clampPlayerPosition,
-  type ArenaBounds,
-} from "../systems/arenaBounds";
+import { clampPlayerPosition, type ArenaBounds } from "../systems/arenaBounds";
 import { createFrontalProjectile } from "../systems/playerShooting";
 import { createBothLateralProjectiles } from "../systems/playerLateralShooting";
 import { updateProjectiles } from "../systems/projectileManager";
@@ -114,11 +111,9 @@ export function GameCanvas() {
         projectile: ProjectileEntity,
         color: number,
       ) {
-        const projectileGraphic = new Graphics()
-          .circle(0, 0, 5)
-          .fill({
-            color,
-          });
+        const projectileGraphic = new Graphics().circle(0, 0, 5).fill({
+          color,
+        });
 
         projectileGraphic.position.set(
           projectile.transform.position.x,
@@ -172,16 +167,16 @@ export function GameCanvas() {
         const key = event.key.toLowerCase();
 
         if (
-  key === "arrowup" ||
-  key === "arrowdown" ||
-  key === "arrowleft" ||
-  key === "arrowright" ||
-  event.code === "Space" ||
-  event.code === "ShiftLeft" ||
-  event.code === "ShiftRight"
-) {
-  event.preventDefault();
-}
+          key === "arrowup" ||
+          key === "arrowdown" ||
+          key === "arrowleft" ||
+          key === "arrowright" ||
+          event.code === "Space" ||
+          event.code === "ShiftLeft" ||
+          event.code === "ShiftRight"
+        ) {
+          event.preventDefault();
+        }
 
         if (event.code === "Space" || event.key === " ") {
           if (!event.repeat) {
@@ -191,18 +186,15 @@ export function GameCanvas() {
           return;
         }
 
-        if (
-  event.code === "ShiftLeft" ||
-  event.code === "ShiftRight"
-) {
-  event.preventDefault();
+        if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
+          event.preventDefault();
 
-  if (!event.repeat) {
-    fireLateralProjectiles();
-  }
+          if (!event.repeat) {
+            fireLateralProjectiles();
+          }
 
-  return;
-}
+          return;
+        }
 
         switch (key) {
           case "w":
@@ -298,10 +290,7 @@ export function GameCanvas() {
           lateralProjectileCooldownRemaining - deltaTimeSeconds,
         );
 
-        projectiles = updateProjectiles(
-          projectiles,
-          deltaTimeSeconds,
-        );
+        projectiles = updateProjectiles(projectiles, deltaTimeSeconds);
 
         const activeProjectileIds = new Set(
           projectiles.map((projectile) => projectile.id),
