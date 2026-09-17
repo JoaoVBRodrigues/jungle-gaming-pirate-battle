@@ -1,4 +1,3 @@
-
 import { useEffect, useRef } from "react";
 import { Application, Graphics } from "pixi.js";
 import type { PlayerEntity } from "../entities";
@@ -6,10 +5,7 @@ import {
   updatePlayerTransform,
   type MovementInput,
 } from "../systems/playerMovement";
-import {
-  clampPlayerPosition,
-  type ArenaBounds,
-} from "../systems/arenaBounds";
+import { clampPlayerPosition, type ArenaBounds } from "../systems/arenaBounds";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -51,6 +47,8 @@ export function GameCanvas() {
       const arenaBounds: ArenaBounds = {
         width: 800,
         height: 600,
+        paddingX: 20,
+        paddingY: 25,
       };
 
       const player: PlayerEntity = {
@@ -76,16 +74,9 @@ export function GameCanvas() {
 
       const playerShip = new Graphics();
 
-      playerShip
-        .poly([
-          0, -25,
-          18, 20,
-          0, 12,
-          -18, 20,
-        ])
-        .fill({
-          color: 0xf4c542,
-        });
+      playerShip.poly([0, -25, 18, 20, 0, 12, -18, 20]).fill({
+        color: 0xf4c542,
+      });
 
       playerShip.position.set(
         currentPlayer.transform.position.x,
