@@ -1,5 +1,10 @@
 import { useEffect, useRef } from "react";
 import { Application, Graphics } from "pixi.js";
+import type { PlayerEntity } from "../entities";
+import {
+  updatePlayerTransform,
+  type MovementInput,
+} from "../systems/playerMovement";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -37,6 +42,27 @@ export function GameCanvas() {
         return;
       }
 
+      const player: PlayerEntity = {
+        id: "player-1",
+        transform: {
+          position: {
+            x: 400,
+            y: 300,
+          },
+          rotation: 0,
+        },
+        velocity: {
+          x: 0,
+          y: 0,
+        },
+        movementSpeed: 100,
+        rotationSpeed: 2,
+        health: 100,
+        maxHealth: 100,
+      };
+
+      let currentPlayer = player;
+
       const playerShip = new Graphics();
 
       playerShip
@@ -50,12 +76,37 @@ export function GameCanvas() {
           color: 0xf4c542,
         });
 
-      playerShip.position.set(400, 300);
+      playerShip.position.set(
+        currentPlayer.transform.position.x,
+        currentPlayer.transform.position.y,
+      );
 
       application.stage.addChild(playerShip);
       currentContainer.appendChild(application.canvas);
 
-      console.log("Player ship created:", playerShip);
+      const movementInput: MovementInput = {
+        forward: true,
+        backward: false,
+        left: false,
+        right: false,
+      };
+
+      application.ticker.add((ticker) => {
+        const deltaTimeSeconds = ticker.deltaMS / 1000;
+
+        currentPlayer = updatePlayerTransform(
+          currentPlayer,
+          movementInput,
+          deltaTimeSeconds,
+        );
+
+        playerShip.position.set(
+          currentPlayer.transform.position.x,
+          currentPlayer.transform.position.y,
+        );
+
+        playerShip.rotation = currentPlayer.transform.rotation;
+      });
     }
 
     void initializeGame();
