@@ -1,0 +1,31 @@
+.touch-controls {
+    display: none;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    width: min(100%, 520px);
+    margin: 0.75rem auto;
+}
+
+.touch-controls__button {
+    min-height: 3.25rem;
+    padding: 0.5rem;
+    color: #101820;
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: #f4c542;
+    border: 0;
+    touch-action: none;
+}
+
+.touch-controls__button:active,
+.touch-controls__button:focus-visible {
+    background: #ffd968;
+    outline: 3px solid #9dbbff;
+    outline-offset: 2px;
+}
+
+@media (max-width: 700px), (pointer: coarse) {
+    .touch-controls {
+        display: grid;
+    }
+}
