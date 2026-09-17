@@ -1,3 +1,4 @@
+
 import { useEffect, useRef } from "react";
 import { Application, Graphics } from "pixi.js";
 import type { PlayerEntity } from "../entities";
@@ -20,6 +21,7 @@ export function GameCanvas() {
 
     let isMounted = true;
     let isInitialized = false;
+    let removeKeyboardListeners = () => undefined;
 
     async function initializeGame() {
       await application.init({
@@ -85,10 +87,77 @@ export function GameCanvas() {
       currentContainer.appendChild(application.canvas);
 
       const movementInput: MovementInput = {
-        forward: true,
+        forward: false,
         backward: false,
         left: false,
         right: false,
+      };
+
+      function handleKeyDown(event: KeyboardEvent) {
+        const key = event.key.toLowerCase();
+
+        if (
+          key === "arrowup" ||
+          key === "arrowdown" ||
+          key === "arrowleft" ||
+          key === "arrowright"
+        ) {
+          event.preventDefault();
+        }
+
+        switch (key) {
+          case "w":
+          case "arrowup":
+            movementInput.forward = true;
+            break;
+
+          case "s":
+          case "arrowdown":
+            movementInput.backward = true;
+            break;
+
+          case "a":
+          case "arrowleft":
+            movementInput.left = true;
+            break;
+
+          case "d":
+          case "arrowright":
+            movementInput.right = true;
+            break;
+        }
+      }
+
+      function handleKeyUp(event: KeyboardEvent) {
+        switch (event.key.toLowerCase()) {
+          case "w":
+          case "arrowup":
+            movementInput.forward = false;
+            break;
+
+          case "s":
+          case "arrowdown":
+            movementInput.backward = false;
+            break;
+
+          case "a":
+          case "arrowleft":
+            movementInput.left = false;
+            break;
+
+          case "d":
+          case "arrowright":
+            movementInput.right = false;
+            break;
+        }
+      }
+
+      window.addEventListener("keydown", handleKeyDown);
+      window.addEventListener("keyup", handleKeyUp);
+
+      removeKeyboardListeners = () => {
+        window.removeEventListener("keydown", handleKeyDown);
+        window.removeEventListener("keyup", handleKeyUp);
       };
 
       application.ticker.add((ticker) => {
@@ -113,6 +182,8 @@ export function GameCanvas() {
 
     return () => {
       isMounted = false;
+
+      removeKeyboardListeners();
 
       if (isInitialized) {
         application.destroy(true);
