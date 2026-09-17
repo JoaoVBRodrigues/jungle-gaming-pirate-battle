@@ -16,6 +16,10 @@ function formatStatus(status: string): string {
 export function GameHud() {
     const gameState = useGameState();
 
+    function handlePauseToggle() {
+        window.dispatchEvent(new Event('game:toggle-pause'));
+    }
+
     return (
         <section className="game-hud" aria-label="Game status">
             <div className="game-hud__item">
@@ -41,6 +45,17 @@ export function GameHud() {
                 <span className="game-hud__label">Status</span>
                 <strong>{formatStatus(gameState.status)}</strong>
             </div>
+
+            {(gameState.status === 'playing' ||
+                gameState.status === 'paused') && (
+                <button
+                    className="game-hud__pause-button"
+                    type="button"
+                    onClick={handlePauseToggle}
+                >
+                    {gameState.status === 'paused' ? 'Resume' : 'Pause'}
+                </button>
+            )}
         </section>
     );
 }

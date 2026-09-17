@@ -34,3 +34,22 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
+
+.game-hud__pause-button {
+    min-height: 2.25rem;
+    padding: 0.4rem 0.75rem;
+    color: #101820;
+    font-weight: 700;
+    background: #f4c542;
+    border: 0;
+    cursor: pointer;
+}
+
+.game-hud__pause-button:hover {
+    background: #ffd968;
+}
+
+.game-hud__pause-button:focus-visible {
+    outline: 3px solid #9dbbff;
+    outline-offset: 3px;
+}
