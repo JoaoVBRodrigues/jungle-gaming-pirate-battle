@@ -6,6 +6,10 @@ import {
   updatePlayerTransform,
   type MovementInput,
 } from "../systems/playerMovement";
+import {
+  clampPlayerPosition,
+  type ArenaBounds,
+} from "../systems/arenaBounds";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -43,6 +47,11 @@ export function GameCanvas() {
         application.destroy(true);
         return;
       }
+
+      const arenaBounds: ArenaBounds = {
+        width: 800,
+        height: 600,
+      };
 
       const player: PlayerEntity = {
         id: "player-1",
@@ -163,11 +172,24 @@ export function GameCanvas() {
       application.ticker.add((ticker) => {
         const deltaTimeSeconds = ticker.deltaMS / 1000;
 
-        currentPlayer = updatePlayerTransform(
+        const nextPlayer = updatePlayerTransform(
           currentPlayer,
           movementInput,
           deltaTimeSeconds,
         );
+
+        const boundedPosition = clampPlayerPosition(
+          nextPlayer.transform.position,
+          arenaBounds,
+        );
+
+        currentPlayer = {
+          ...nextPlayer,
+          transform: {
+            ...nextPlayer.transform,
+            position: boundedPosition,
+          },
+        };
 
         playerShip.position.set(
           currentPlayer.transform.position.x,
