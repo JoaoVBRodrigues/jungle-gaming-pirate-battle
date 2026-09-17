@@ -1,9 +1,18 @@
 import { useEffect, useRef } from "react";
-import { Application, Graphics, Text } from "pixi.js";
+import {
+    Application,
+    Assets,
+    Graphics,
+    Text,
+    TilingSprite,
+    type Texture,
+} from "pixi.js";
 import { INITIAL_GAME_STATE } from "../simulation/gameState";
 import {
     startGame,
     finishGame,
+    pauseGame,
+    resumeGame,
 } from "../simulation/gameStateManager";
 import { updateGameTime } from "../simulation/gameTime";
 import {
@@ -16,7 +25,10 @@ import type {
     PlayerEntity,
     ProjectileEntity,
 } from "../entities";
-import { DEFAULT_GAME_CONFIG } from "../config/gameConfig";
+import {
+    DEFAULT_GAME_CONFIG,
+    type GameConfig,
+} from "../config/gameConfig";
 import { DEFAULT_ISLANDS } from "../config/islandLayout";
 import {
     updatePlayerTransform,
@@ -43,8 +55,21 @@ import {
     isPlayerCollidingWithIsland,
     isProjectileCollidingWithIsland,
 } from "../systems/islandCollision";
+import { createEnemyAtSpawn } from "../systems/enemySpawn";
+import type { EnemyType } from "../entities";
 
-export function GameCanvas() {
+const waterTextureUrl = new URL(
+    "../../../assets/png/default/tiles/tile_73.png",
+    import.meta.url,
+).href;
+
+interface GameCanvasProps {
+    config?: GameConfig;
+}
+
+export function GameCanvas({
+    config = DEFAULT_GAME_CONFIG,
+}: GameCanvasProps) {
     const canvasContainerRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -59,6 +84,7 @@ export function GameCanvas() {
         let isMounted = true;
         let isInitialized = false;
         let removeKeyboardListeners = () => undefined;
+        let removePauseListeners = () => undefined;
 
         async function initializeGame() {
             await application.init({
@@ -81,12 +107,29 @@ export function GameCanvas() {
                 return;
             }
 
+            try {
+                const waterTexture = await Assets.load<Texture>(
+                    waterTextureUrl,
+                );
+                application.stage.addChild(
+                    new TilingSprite({
+                        texture: waterTexture,
+                        width: 800,
+                        height: 600,
+                    }),
+                );
+            } catch {
+                // Keep the existing background color if the optional asset fails.
+            }
+
             const arenaBounds: ArenaBounds = {
                 width: 800,
                 height: 600,
                 paddingX: 20,
                 paddingY: 25,
             };
+
+            const matchConfig = config;
 
             const player: PlayerEntity = {
                 id: "player-1",
@@ -123,9 +166,9 @@ export function GameCanvas() {
                     x: 0,
                     y: 0,
                 },
-                movementSpeed: DEFAULT_GAME_CONFIG.chaser.movementSpeed,
-                health: DEFAULT_GAME_CONFIG.chaser.health,
-                maxHealth: DEFAULT_GAME_CONFIG.chaser.health,
+                movementSpeed: matchConfig.chaser.movementSpeed,
+                health: matchConfig.chaser.health,
+                maxHealth: matchConfig.chaser.health,
             };
 
             let currentChaser = chaser;
@@ -144,9 +187,9 @@ export function GameCanvas() {
                     x: 0,
                     y: 0,
                 },
-                movementSpeed: DEFAULT_GAME_CONFIG.shooter.movementSpeed,
-                health: DEFAULT_GAME_CONFIG.shooter.health,
-                maxHealth: DEFAULT_GAME_CONFIG.shooter.health,
+                movementSpeed: matchConfig.shooter.movementSpeed,
+                health: matchConfig.shooter.health,
+                maxHealth: matchConfig.shooter.health,
             };
 
             let currentShooter = shooter;
@@ -162,10 +205,10 @@ export function GameCanvas() {
             let lastPublishedRemainingTime = -1;
             let lastPublishedStatus = currentGameState.status;
 
-            const weaponConfig = DEFAULT_GAME_CONFIG.frontalWeapon;
+            const weaponConfig = matchConfig.frontalWeapon;
             const lateralWeaponConfig =
-                DEFAULT_GAME_CONFIG.lateralWeapon;
-            const shooterConfig = DEFAULT_GAME_CONFIG.shooter;
+                matchConfig.lateralWeapon;
+            const shooterConfig = matchConfig.shooter;
 
             let projectiles: ProjectileEntity[] = [];
 
@@ -184,8 +227,15 @@ export function GameCanvas() {
             let isGameOver = false;
             let isChaserDefeated = false;
             let isShooterDefeated = false;
+            let spawnCooldownRemaining =
+                matchConfig.spawn.intervalSeconds;
+            let spawnSequence = 0;
+            let spawnedEnemies: EnemyEntity[] = [];
 
             const projectileGraphics = new Map<string, Graphics>();
+            const spawnedEnemyGraphics = new Map<string, Graphics>();
+            const spawnedEnemyContactCooldowns = new Map<string, number>();
+            const spawnedShooterCooldowns = new Map<string, number>();
 
             const islands: IslandEntity[] = DEFAULT_ISLANDS.map(
                 (island) => ({
@@ -301,7 +351,7 @@ export function GameCanvas() {
                 const remainingTime = Math.max(
                     0,
                     Math.ceil(
-                        DEFAULT_GAME_CONFIG.matchDurationSeconds -
+                        matchConfig.matchDurationSeconds -
                             currentGameState.elapsedTimeSeconds,
                     ),
                 );
@@ -353,7 +403,36 @@ export function GameCanvas() {
                     color: 0x8b0000,
                 });
 
+                for (const graphic of spawnedEnemyGraphics.values()) {
+                    graphic.destroy();
+                }
+
+                spawnedEnemyGraphics.clear();
+                spawnedEnemies = [];
+
                 publishGameState();
+            }
+
+            function pauseCurrentGame() {
+                currentGameState = pauseGame(currentGameState);
+                movementInput.forward = false;
+                movementInput.backward = false;
+                movementInput.left = false;
+                movementInput.right = false;
+                publishGameState();
+            }
+
+            function resumeCurrentGame() {
+                currentGameState = resumeGame(currentGameState);
+                publishGameState();
+            }
+
+            function togglePause() {
+                if (currentGameState.status === "playing") {
+                    pauseCurrentGame();
+                } else if (currentGameState.status === "paused") {
+                    resumeCurrentGame();
+                }
             }
 
             resetGameState();
@@ -385,6 +464,81 @@ export function GameCanvas() {
                 return Math.sqrt(deltaX * deltaX + deltaY * deltaY);
             }
 
+            const spawnPositions = [
+                { x: 60, y: 80 },
+                { x: 400, y: 70 },
+                { x: 740, y: 80 },
+                { x: 60, y: 520 },
+                { x: 400, y: 530 },
+                { x: 740, y: 520 },
+            ];
+
+            function updateSpawnedEnemyAppearance(
+                graphic: Graphics,
+                enemy: EnemyEntity,
+            ) {
+                graphic.clear();
+
+                if (enemy.type === "chaser") {
+                    graphic
+                        .circle(0, 0, 16)
+                        .fill({ color: 0xd94f4f });
+                    return;
+                }
+
+                graphic
+                    .rect(-15, -15, 30, 30)
+                    .fill({ color: 0x8b5cf6 })
+                    .stroke({ color: 0xe0c3ff, width: 2 });
+            }
+
+            function spawnEnemy(type: EnemyType) {
+                const config =
+                    type === "chaser"
+                        ? matchConfig.chaser
+                        : matchConfig.shooter;
+                const orderedPositions = spawnPositions.map(
+                    (_, index) =>
+                        spawnPositions[
+                            (index + spawnSequence) %
+                                spawnPositions.length
+                        ],
+                );
+                const enemy = createEnemyAtSpawn(
+                    type,
+                    `spawned-${type}-${spawnSequence}`,
+                    currentPlayer,
+                    islands,
+                    arenaBounds,
+                    config,
+                    orderedPositions,
+                    matchConfig.spawn.minimumDistanceFromPlayer,
+                );
+
+                spawnSequence += 1;
+
+                if (!enemy) {
+                    return;
+                }
+
+                const graphic = new Graphics();
+                updateSpawnedEnemyAppearance(graphic, enemy);
+                graphic.position.set(
+                    enemy.transform.position.x,
+                    enemy.transform.position.y,
+                );
+                application.stage.addChild(graphic);
+                spawnedEnemies = [...spawnedEnemies, enemy];
+                spawnedEnemyGraphics.set(enemy.id, graphic);
+                spawnedEnemyContactCooldowns.set(enemy.id, 0);
+                spawnedShooterCooldowns.set(
+                    enemy.id,
+                    type === "shooter"
+                        ? shooterConfig.attackCooldownSeconds
+                        : 0,
+                );
+            }
+
             function addProjectileGraphic(
                 projectile: ProjectileEntity,
                 color: number,
@@ -410,6 +564,7 @@ export function GameCanvas() {
             function fireFrontalProjectile() {
                 if (
                     isGameOver ||
+                    currentGameState.status !== "playing" ||
                     projectileCooldownRemaining > 0
                 ) {
                     return;
@@ -432,6 +587,7 @@ export function GameCanvas() {
             function fireLateralProjectiles() {
                 if (
                     isGameOver ||
+                    currentGameState.status !== "playing" ||
                     lateralProjectileCooldownRemaining > 0
                 ) {
                     return;
@@ -460,6 +616,7 @@ export function GameCanvas() {
             function fireShooterProjectile() {
                 if (
                     isGameOver ||
+                    currentGameState.status !== "playing" ||
                     isShooterDefeated ||
                     shooterAttackCooldownRemaining > 0
                 ) {
@@ -492,6 +649,12 @@ export function GameCanvas() {
 
             function handleKeyDown(event: KeyboardEvent) {
                 const key = event.key.toLowerCase();
+
+                if (event.key === "Escape") {
+                    event.preventDefault();
+                    togglePause();
+                    return;
+                }
 
                 if (
                     key === "arrowup" ||
@@ -578,6 +741,41 @@ export function GameCanvas() {
                 }
             }
 
+            function handleTouchInput(event: Event) {
+                const detail = (
+                    event as CustomEvent<{
+                        action?: string;
+                        pressed?: boolean;
+                    }>
+                ).detail;
+
+                if (!detail || typeof detail.pressed !== "boolean") {
+                    return;
+                }
+
+                switch (detail.action) {
+                    case "forward":
+                        movementInput.forward = detail.pressed;
+                        break;
+                    case "left":
+                        movementInput.left = detail.pressed;
+                        break;
+                    case "right":
+                        movementInput.right = detail.pressed;
+                        break;
+                    case "fire":
+                        if (detail.pressed) {
+                            fireFrontalProjectile();
+                        }
+                        break;
+                    case "lateral":
+                        if (detail.pressed) {
+                            fireLateralProjectiles();
+                        }
+                        break;
+                }
+            }
+
             function isProjectileCollidingWithEnemy(
                 projectile: ProjectileEntity,
                 enemy: EnemyEntity,
@@ -649,6 +847,35 @@ export function GameCanvas() {
                 }
             }
 
+            function removeProjectilesOutsideArena() {
+                for (const projectile of [...projectiles]) {
+                    const { x, y } = projectile.transform.position;
+                    const isOutside =
+                        x < 0 ||
+                        x > arenaBounds.width ||
+                        y < 0 ||
+                        y > arenaBounds.height;
+
+                    if (isOutside) {
+                        removeProjectile(projectile.id);
+                    }
+                }
+            }
+
+            function fireShooterProjectileForEnemy(
+                enemy: EnemyEntity,
+            ) {
+                const projectile = createEnemyProjectile(
+                    enemy,
+                    currentPlayer,
+                    shooterConfig,
+                    `enemy-projectile-${crypto.randomUUID()}`,
+                );
+
+                projectiles = [...projectiles, projectile];
+                addProjectileGraphic(projectile, 0x66ccff);
+            }
+
             function updateShooterPosition(
                 enemy: EnemyEntity,
                 targetPlayer: PlayerEntity,
@@ -715,14 +942,62 @@ export function GameCanvas() {
 
             window.addEventListener("keydown", handleKeyDown);
             window.addEventListener("keyup", handleKeyUp);
+            window.addEventListener(
+                "game:touch-input",
+                handleTouchInput,
+            );
+
+            function handleWindowBlur() {
+                pauseCurrentGame();
+            }
+
+            function handleVisibilityChange() {
+                if (document.hidden) {
+                    pauseCurrentGame();
+                }
+            }
+
+            function handlePauseToggle() {
+                togglePause();
+            }
+
+            window.addEventListener("blur", handleWindowBlur);
+            document.addEventListener(
+                "visibilitychange",
+                handleVisibilityChange,
+            );
+            window.addEventListener(
+                "game:toggle-pause",
+                handlePauseToggle,
+            );
 
             removeKeyboardListeners = () => {
                 window.removeEventListener("keydown", handleKeyDown);
                 window.removeEventListener("keyup", handleKeyUp);
+                window.removeEventListener(
+                    "game:touch-input",
+                    handleTouchInput,
+                );
+            };
+
+            removePauseListeners = () => {
+                window.removeEventListener("blur", handleWindowBlur);
+                document.removeEventListener(
+                    "visibilitychange",
+                    handleVisibilityChange,
+                );
+                window.removeEventListener(
+                    "game:toggle-pause",
+                    handlePauseToggle,
+                );
             };
 
             application.ticker.add((ticker) => {
                 if (isGameOver) {
+                    return;
+                }
+
+                if (currentGameState.status === "paused") {
                     return;
                 }
 
@@ -731,7 +1006,7 @@ export function GameCanvas() {
                 currentGameState = updateGameTime(
                     currentGameState,
                     deltaTimeSeconds,
-                    DEFAULT_GAME_CONFIG.matchDurationSeconds,
+                    matchConfig.matchDurationSeconds,
                 );
 
                 if (currentGameState.status === "finished") {
@@ -782,6 +1057,141 @@ export function GameCanvas() {
                 playerShip.rotation =
                     currentPlayer.transform.rotation;
 
+                spawnCooldownRemaining = Math.max(
+                    0,
+                    spawnCooldownRemaining - deltaTimeSeconds,
+                );
+
+                if (spawnCooldownRemaining === 0) {
+                    spawnEnemy(
+                        spawnSequence % 2 === 0
+                            ? "chaser"
+                            : "shooter",
+                    );
+                    spawnCooldownRemaining =
+                        matchConfig.spawn.intervalSeconds;
+                }
+
+                for (const enemy of spawnedEnemies) {
+                    if (enemy.type === "chaser") {
+                        const nextEnemy = updateEnemyPosition(
+                            enemy,
+                            currentPlayer,
+                            deltaTimeSeconds,
+                        );
+                        const enemyGraphic =
+                            spawnedEnemyGraphics.get(enemy.id);
+                        const isColliding = areEntitiesColliding(
+                            currentPlayer,
+                            nextEnemy,
+                            { playerRadius: 20, enemyRadius: 16 },
+                        );
+                        const contactCooldown = Math.max(
+                            0,
+                            (spawnedEnemyContactCooldowns.get(
+                                enemy.id,
+                            ) ?? 0) - deltaTimeSeconds,
+                        );
+
+                        spawnedEnemyContactCooldowns.set(
+                            enemy.id,
+                            contactCooldown,
+                        );
+
+                        if (
+                            isColliding &&
+                            contactCooldown === 0 &&
+                            currentPlayer.health > 0
+                        ) {
+                            currentPlayer = applyDamageToPlayer(
+                                currentPlayer,
+                                matchConfig.chaser
+                                    .contactDamage,
+                            );
+                            spawnedEnemyContactCooldowns.set(
+                                enemy.id,
+                                chaserContactCooldownSeconds,
+                            );
+
+                            enemyGraphic?.destroy();
+                            spawnedEnemyGraphics.delete(enemy.id);
+                            spawnedEnemyContactCooldowns.delete(
+                                enemy.id,
+                            );
+                            spawnedEnemies = spawnedEnemies.filter(
+                                (candidate) =>
+                                    candidate.id !== enemy.id,
+                            );
+                            continue;
+                        }
+
+                        if (enemyGraphic) {
+                            enemyGraphic.position.set(
+                                nextEnemy.transform.position.x,
+                                nextEnemy.transform.position.y,
+                            );
+                        }
+
+                        spawnedEnemies = spawnedEnemies.map(
+                            (candidate) =>
+                                candidate.id === enemy.id
+                                    ? nextEnemy
+                                    : candidate,
+                        );
+                        continue;
+                    }
+
+                    const nextEnemy = updateShooterPosition(
+                        enemy,
+                        currentPlayer,
+                        deltaTimeSeconds,
+                    );
+                    const enemyGraphic = spawnedEnemyGraphics.get(
+                        enemy.id,
+                    );
+                    const distanceToPlayer = calculateDistance(
+                        nextEnemy.transform.position,
+                        currentPlayer.transform.position,
+                    );
+                    const nextCooldown = Math.max(
+                        0,
+                        (spawnedShooterCooldowns.get(enemy.id) ?? 0) -
+                            deltaTimeSeconds,
+                    );
+
+                    spawnedShooterCooldowns.set(
+                        enemy.id,
+                        nextCooldown,
+                    );
+
+                    if (
+                        distanceToPlayer <= shooterAttackRange &&
+                        nextCooldown === 0
+                    ) {
+                        fireShooterProjectileForEnemy(nextEnemy);
+                        spawnedShooterCooldowns.set(
+                            enemy.id,
+                            shooterConfig.attackCooldownSeconds,
+                        );
+                    }
+
+                    if (enemyGraphic) {
+                        enemyGraphic.position.set(
+                            nextEnemy.transform.position.x,
+                            nextEnemy.transform.position.y,
+                        );
+                        enemyGraphic.rotation =
+                            nextEnemy.transform.rotation;
+                    }
+
+                    spawnedEnemies = spawnedEnemies.map(
+                        (candidate) =>
+                            candidate.id === enemy.id
+                                ? nextEnemy
+                                : candidate,
+                    );
+                }
+
                 if (!isChaserDefeated) {
                     currentChaser = updateEnemyPosition(
                         currentChaser,
@@ -819,12 +1229,15 @@ export function GameCanvas() {
                     ) {
                         currentPlayer = applyDamageToPlayer(
                             currentPlayer,
-                            DEFAULT_GAME_CONFIG.chaser
+                            matchConfig.chaser
                                 .contactDamage,
                         );
 
                         chaserContactCooldownRemaining =
                             chaserContactCooldownSeconds;
+
+                        isChaserDefeated = true;
+                        chaserShip.visible = false;
 
                         console.log(
                             `Player health: ${currentPlayer.health}`,
@@ -929,6 +1342,7 @@ export function GameCanvas() {
                 );
 
                 removeProjectilesCollidingWithIslands();
+                removeProjectilesOutsideArena();
 
                 if (!isChaserDefeated) {
                     for (const projectile of [...projectiles]) {
@@ -1012,6 +1426,55 @@ export function GameCanvas() {
                     }
                 }
 
+                for (const enemy of [...spawnedEnemies]) {
+                    for (const projectile of [...projectiles]) {
+                        if (
+                            projectile.owner !== "player" ||
+                            !isProjectileCollidingWithEnemy(
+                                projectile,
+                                enemy,
+                                enemy.type === "chaser" ? 16 : 15,
+                            )
+                        ) {
+                            continue;
+                        }
+
+                        const damagedEnemy = applyDamageToEnemy(
+                            enemy,
+                            projectile.damage,
+                        );
+                        removeProjectile(projectile.id);
+
+                        spawnedEnemies = spawnedEnemies.map(
+                            (candidate) =>
+                                candidate.id === enemy.id
+                                    ? damagedEnemy
+                                    : candidate,
+                        );
+
+                        if (damagedEnemy.health <= 0) {
+                            const graphic = spawnedEnemyGraphics.get(
+                                enemy.id,
+                            );
+                            graphic?.destroy();
+                            spawnedEnemyGraphics.delete(enemy.id);
+                            spawnedEnemyContactCooldowns.delete(
+                                enemy.id,
+                            );
+                            spawnedShooterCooldowns.delete(enemy.id);
+                            spawnedEnemies = spawnedEnemies.filter(
+                                (candidate) =>
+                                    candidate.id !== enemy.id,
+                            );
+                            currentScore = addEnemyDefeatScore(
+                                currentScore,
+                            );
+                        }
+
+                        break;
+                    }
+                }
+
                 for (const projectile of [...projectiles]) {
                     if (
                         projectile.owner !== "enemy" ||
@@ -1083,12 +1546,13 @@ export function GameCanvas() {
             isMounted = false;
 
             removeKeyboardListeners();
+            removePauseListeners();
 
             if (isInitialized) {
                 application.destroy(true);
             }
         };
-    }, []);
+    }, [config]);
 
     return <div ref={canvasContainerRef} />;
 }
