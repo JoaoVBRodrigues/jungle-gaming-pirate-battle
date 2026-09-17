@@ -1,6 +1,6 @@
 
 import { useEffect, useRef } from "react";
-import { Application, Graphics } from "pixi.js";
+import { Application, Graphics, Text } from "pixi.js";
 import type {
   EnemyEntity,
   PlayerEntity,
@@ -21,6 +21,7 @@ import { updateProjectiles } from "../systems/projectileManager";
 import { updateEnemyPosition } from "../systems/enemyMovement";
 import { areEntitiesColliding } from "../systems/entityCollision";
 import { applyDamageToPlayer } from "../systems/damageSystem";
+import { isPlayerDefeated } from "../systems/playerStatus";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -115,10 +116,11 @@ export function GameCanvas() {
 
       let projectileCooldownRemaining = 0;
       let lateralProjectileCooldownRemaining = 0;
-
       let chaserContactCooldownRemaining = 0;
 
       const chaserContactCooldownSeconds = 1;
+
+      let isGameOver = false;
 
       const projectileGraphics = new Map<string, Graphics>();
 
@@ -152,8 +154,27 @@ export function GameCanvas() {
         currentChaser.transform.position.y,
       );
 
+      const gameOverText = new Text({
+        text: "GAME OVER",
+        style: {
+          fontFamily: "Arial",
+          fontSize: 56,
+          fontWeight: "bold",
+          fill: 0xff4444,
+          stroke: {
+            color: 0x000000,
+            width: 6,
+          },
+        },
+      });
+
+      gameOverText.anchor.set(0.5);
+      gameOverText.position.set(400, 300);
+      gameOverText.visible = false;
+
       application.stage.addChild(playerShip);
       application.stage.addChild(chaserShip);
+      application.stage.addChild(gameOverText);
 
       currentContainer.appendChild(application.canvas);
 
@@ -182,7 +203,10 @@ export function GameCanvas() {
       }
 
       function fireFrontalProjectile() {
-        if (projectileCooldownRemaining > 0) {
+        if (
+          isGameOver ||
+          projectileCooldownRemaining > 0
+        ) {
           return;
         }
 
@@ -200,7 +224,10 @@ export function GameCanvas() {
       }
 
       function fireLateralProjectiles() {
-        if (lateralProjectileCooldownRemaining > 0) {
+        if (
+          isGameOver ||
+          lateralProjectileCooldownRemaining > 0
+        ) {
           return;
         }
 
@@ -247,12 +274,14 @@ export function GameCanvas() {
           event.code === "ShiftLeft" ||
           event.code === "ShiftRight"
         ) {
-          event.preventDefault();
-
           if (!event.repeat) {
             fireLateralProjectiles();
           }
 
+          return;
+        }
+
+        if (isGameOver) {
           return;
         }
 
@@ -312,6 +341,10 @@ export function GameCanvas() {
       };
 
       application.ticker.add((ticker) => {
+        if (isGameOver) {
+          return;
+        }
+
         const deltaTimeSeconds = ticker.deltaMS / 1000;
 
         const nextPlayer = updatePlayerTransform(
@@ -383,6 +416,25 @@ export function GameCanvas() {
           console.log(
             `Player health: ${currentPlayer.health}`,
           );
+        }
+
+        if (isPlayerDefeated(currentPlayer)) {
+          isGameOver = true;
+          movementInput.forward = false;
+          movementInput.backward = false;
+          movementInput.left = false;
+          movementInput.right = false;
+
+          gameOverText.visible = true;
+
+          chaserShip.clear();
+          chaserShip.circle(0, 0, 24).fill({
+            color: 0x8b0000,
+          });
+
+          console.log("Game over");
+
+          return;
         }
 
         projectileCooldownRemaining = Math.max(
