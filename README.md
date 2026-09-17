@@ -1,46 +1,54 @@
-# React + TypeScript + Vite
+# Pirate Battle
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Pirate Battle is a top-down 2D naval shooter built with React, TypeScript, and PixiJS.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```text
+npm install
+npm run dev
+```
 
-## React Compiler
+## Commands
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```text
+npm test
+npm run lint
+npm run build
+npm run preview
+npm run test:e2e
+```
 
-## Expanding the ESLint configuration
+## Controls
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+- `W`, `ArrowUp`: move forward.
+- `A`, `ArrowLeft`: turn left.
+- `D`, `ArrowRight`: turn right.
+- `Space`: frontal fire.
+- `Shift`: lateral fire.
+- `Escape`: pause or resume.
+- Touch controls are available on coarse-pointer and narrow screens.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+## MVP features
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+- PixiJS arena with player, islands, projectiles, Chasers, and Shooters.
+- Configurable match duration and enemy spawn interval.
+- Persistent Options using `localStorage`.
+- Pause by key, button, window blur, or hidden tab.
+- Mocked Ranking and Match History using Axios, TanStack Query, and MSW.
+- Idempotent match registration by `matchId`.
+- React HUD and result screen separate from PixiJS rendering.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Options
+
+`Game session time` is clamped to 60-180 seconds. `Enemy spawn time` is clamped to 1-30 seconds. Values are saved locally and copied into an immutable match configuration when `Play` is selected.
+
+## Known limitations
+
+- The current renderer still uses simple PixiJS `Graphics` for ships and entities. The water tile is loaded from `assets/` with a color fallback.
+- Ranking and history use browser MSW fixtures and local in-memory mock data; they are not a remote service.
+- Playwright currently covers the primary navigation flow. Combat and mobile scenarios still need broader coverage.
+- Deploy configuration is not connected to a provider account.
 
 ```
 

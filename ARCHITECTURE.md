@@ -178,6 +178,28 @@ Tests should use controlled time and deterministic scenarios whenever possible.
 
 ## 9. Known Future Decisions
 
+## 10. Current MVP Implementation Notes
+
+- `App` owns a small screen union and mounts `GameCanvas` only during gameplay. Leaving the game runs the existing PixiJS cleanup.
+- `gameStateStore.ts` exposes only HUD values. `useSyncExternalStore` prevents React from owning the continuous simulation.
+- Enemy spawn validation lives in `src/game/systems/enemySpawn.ts`. Spawned enemies are tracked separately from the initial Chaser and Shooter to keep this MVP change incremental.
+- Pause uses the existing `GameStatus` transitions. Escape, the HUD button, window blur, and hidden-tab events clear movement input; the ticker returns before advancing simulation time or cooldowns.
+- Options are persisted defensively in `src/services/storage/gameOptions.ts`. `App` creates a configuration snapshot before mounting each match.
+- Ranking and Match History use Axios clients, TanStack Query hooks, and MSW browser handlers. Match registration is deduplicated by `matchId` in the mock handler.
+- Touch controls dispatch the same logical actions used by the keyboard path through Pointer Events.
+- The current asset integration is intentionally limited: the water tile is loaded through PixiJS with a fallback, while gameplay entities remain `Graphics` until a broader texture migration is safe.
+
+## 10. Current MVP Implementation Notes
+
+- `App` owns a small screen union and mounts `GameCanvas` only during gameplay. Leaving the game therefore runs the existing PixiJS cleanup.
+- `gameStateStore.ts` exposes only HUD values. `useSyncExternalStore` prevents React from owning the continuous simulation.
+- Enemy spawn validation lives in `src/game/systems/enemySpawn.ts`. Spawned enemies are tracked separately from the initial Chaser and Shooter to keep this MVP change incremental.
+- Pause is driven by the existing `GameStatus` transitions. Escape, the HUD button, window blur, and hidden-tab events clear movement input; the ticker returns before advancing simulation time or cooldowns.
+- Options are persisted defensively in `src/services/storage/gameOptions.ts`. `App` creates a configuration snapshot before mounting each match.
+- Ranking and Match History use Axios clients, TanStack Query hooks, and MSW browser handlers. Match registration is deduplicated by `matchId` in the mock handler.
+- Touch controls dispatch the same logical actions used by the keyboard path through Pointer Events.
+- The current asset integration is intentionally limited: the water tile is loaded through PixiJS with a fallback, while gameplay entities remain `Graphics` until a broader texture migration is safe.
+
 The following details will be defined during implementation:
 
 - Exact entity data structures
