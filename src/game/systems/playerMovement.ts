@@ -1,48 +1,59 @@
-import type { PlayerEntity, Vector2 } from '../entities';
+import type { PlayerEntity, Vector2 } from "../entities";
 
 export interface MovementInput {
-    forward: boolean;
-    backward: boolean;
-    left: boolean;
-    right: boolean;
+  forward: boolean;
+  backward: boolean;
+  left: boolean;
+  right: boolean;
 }
 
 export function calculatePlayerVelocity(
-    player: PlayerEntity,
-    input: MovementInput,
+  player: PlayerEntity,
+  input: MovementInput,
 ): Vector2 {
-    let directionX = 0;
-    let directionY = 0;
+  let direction = 0;
 
-    if (input.left) {
-        directionX -= 1;
-    }
+  if (input.forward) {
+    direction += 1;
+  }
 
-    if (input.right) {
-        directionX += 1;
-    }
+  if (input.backward) {
+    direction -= 1;
+  }
 
-    if (input.forward) {
-        directionY -= 1;
-    }
-
-    if (input.backward) {
-        directionY += 1;
-    }
-
-    const length = Math.sqrt(
-        directionX ** 2 + directionY ** 2,
-    );
-
-    if (length === 0) {
-        return {
-            x: 0,
-            y: 0,
-        };
-    }
-
+  if (direction === 0) {
     return {
-        x: (directionX / length) * player.velocity.x,
-        y: (directionY / length) * player.velocity.y,
+      x: 0,
+      y: 0,
     };
+  }
+
+  const speed = player.movementSpeed * direction;
+  const rotation = player.transform.rotation;
+
+  const velocityX = Math.sin(rotation) * speed;
+  const velocityY = -Math.cos(rotation) * speed;
+
+  return {
+    x: Math.abs(velocityX) < Number.EPSILON ? 0 : velocityX,
+    y: Math.abs(velocityY) < Number.EPSILON ? 0 : velocityY,
+  };
+}
+
+export function calculatePlayerRotationDelta(
+  player: PlayerEntity,
+  input: MovementInput,
+  deltaTimeSeconds: number,
+): number {
+  let direction = 0;
+
+  if (input.right) {
+    direction += 1;
+  }
+
+  if (input.left) {
+    direction -= 1;
+  }
+
+  return direction * player.rotationSpeed * deltaTimeSeconds;
 }

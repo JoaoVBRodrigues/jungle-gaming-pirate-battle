@@ -12,9 +12,11 @@ const player: PlayerEntity = {
         rotation: 0,
     },
     velocity: {
-        x: 100,
-        y: 100,
+        x: 0,
+        y: 0,
     },
+    movementSpeed: 100,
+    rotationSpeed: 2,
     health: 100,
     maxHealth: 100,
 };
@@ -52,16 +54,5 @@ describe('calculatePlayerVelocity', () => {
             x: 0,
             y: 100,
         });
-    });
-
-    it('normalizes diagonal movement', () => {
-        const velocity = calculatePlayerVelocity(player, {
-            ...noInput,
-            forward: true,
-            right: true,
-        });
-
-        expect(velocity.x).toBeCloseTo(70.71, 1);
-        expect(velocity.y).toBeCloseTo(-70.71, 1);
     });
 });
