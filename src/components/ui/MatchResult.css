@@ -88,3 +88,9 @@
     outline: 3px solid #9dbbff;
     outline-offset: 3px;
 }
+
+.match-result__registration {
+    min-height: 1.25rem;
+    color: #a9c1ce;
+    font-size: 0.85rem;
+}

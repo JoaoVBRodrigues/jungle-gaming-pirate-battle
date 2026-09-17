@@ -1,34 +1,60 @@
-import { DEFAULT_GAME_CONFIG } from '../../game/config/gameConfig';
+import { useEffect, useRef } from 'react';
+import type { GameConfig } from '../../game/config/gameConfig';
+import { useRegisterMatch } from '../../app/hooks/useRegisterMatch';
 import { useGameState } from '../../app/hooks/useGameState';
+import { formatMatchDuration } from '../../game/simulation/matchDuration';
 import './MatchResult.css';
 
 interface MatchResultProps {
     onPlayAgain: () => void;
     onBackToMenu: () => void;
-}
-
-function formatDuration(totalSeconds: number): string {
-    const safeSeconds = Math.max(0, Math.ceil(totalSeconds));
-    const minutes = Math.floor(safeSeconds / 60);
-    const seconds = safeSeconds % 60;
-
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    matchId: string;
+    config: GameConfig;
 }
 
 export function MatchResult({
     onPlayAgain,
     onBackToMenu,
+    matchId,
+    config,
 }: MatchResultProps) {
     const gameState = useGameState();
+    const registration = useRegisterMatch();
+    const submittedMatchId = useRef<string | null>(null);
+    const duration = config.matchDurationSeconds - gameState.remainingTime;
+
+    useEffect(() => {
+        if (
+            gameState.status !== 'finished' ||
+            submittedMatchId.current === matchId
+        ) {
+            return;
+        }
+
+        submittedMatchId.current = matchId;
+        registration.mutate({
+            matchId,
+            date: new Date().toISOString(),
+            result: gameState.health <= 0 ? 'Game Over' : 'Victory',
+            score: gameState.score,
+            duration: formatMatchDuration(duration),
+        });
+    }, [
+        config.matchDurationSeconds,
+        duration,
+        gameState.health,
+        gameState.remainingTime,
+        gameState.score,
+        gameState.status,
+        matchId,
+        registration,
+    ]);
 
     if (gameState.status !== 'finished') {
         return null;
     }
 
     const playerWasDefeated = gameState.health <= 0;
-    const duration =
-        DEFAULT_GAME_CONFIG.matchDurationSeconds -
-        gameState.remainingTime;
 
     return (
         <section
@@ -52,9 +78,15 @@ export function MatchResult({
                     </div>
                     <div>
                         <dt>Match Duration</dt>
-                        <dd>{formatDuration(duration)}</dd>
+                        <dd>{formatMatchDuration(duration)}</dd>
                     </div>
                 </dl>
+
+                <p className="match-result__registration" role="status">
+                    {registration.isPending && 'Saving result...'}
+                    {registration.isSuccess && 'Result saved.'}
+                    {registration.isError && 'Result could not be saved.'}
+                </p>
 
                 <button
                     className="match-result__button"
