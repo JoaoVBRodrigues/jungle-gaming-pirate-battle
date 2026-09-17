@@ -1,3 +1,4 @@
+
 export interface PlayerConfig {
     health: number;
     movementSpeed: number;
@@ -21,6 +22,8 @@ export interface EnemyConfig {
 export interface ShooterConfig extends EnemyConfig {
     attackRange: number;
     attackCooldownSeconds: number;
+    projectileSpeed: number;
+    projectileLifetimeSeconds: number;
 }
 
 export interface SpawnConfig {
@@ -75,6 +78,8 @@ export const DEFAULT_GAME_CONFIG: GameConfig = {
         contactDamage: 10,
         attackRange: 300,
         attackCooldownSeconds: 2,
+        projectileSpeed: 250,
+        projectileLifetimeSeconds: 5,
     },
 
     spawn: {
