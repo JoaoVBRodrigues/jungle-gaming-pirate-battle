@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { PlayerEntity } from "../entities";
 import type { WeaponConfig } from "../config/gameConfig";
-import { createFrontalProjectile } from "./playerShooting";
+import {
+  calculateProjectileSpawnPosition,
+  createFrontalProjectile,
+} from "./playerShooting";
 
 describe("createFrontalProjectile", () => {
   const player: PlayerEntity = {
@@ -43,7 +46,7 @@ describe("createFrontalProjectile", () => {
       transform: {
         position: {
           x: 400,
-          y: 300,
+          y: 270,
         },
         rotation: 0,
       },
@@ -75,7 +78,7 @@ describe("createFrontalProjectile", () => {
     expect(projectile.velocity.y).toBeCloseTo(0);
   });
 
-  it("copies the player's position", () => {
+  it("creates a new position in front of the player", () => {
     const projectile = createFrontalProjectile(
       player,
       weapon,
@@ -84,11 +87,40 @@ describe("createFrontalProjectile", () => {
 
     expect(projectile.transform.position).toEqual({
       x: 400,
-      y: 300,
+      y: 270,
     });
 
     expect(projectile.transform.position).not.toBe(
       player.transform.position,
     );
+  });
+
+  describe("calculateProjectileSpawnPosition", () => {
+    it("calculates the spawn position in front of the player", () => {
+      const result = calculateProjectileSpawnPosition(player, 30);
+
+      expect(result).toEqual({
+        x: 400,
+        y: 270,
+      });
+    });
+
+    it("calculates the spawn position according to rotation", () => {
+      const rotatedPlayer: PlayerEntity = {
+        ...player,
+        transform: {
+          ...player.transform,
+          rotation: Math.PI / 2,
+        },
+      };
+
+      const result = calculateProjectileSpawnPosition(
+        rotatedPlayer,
+        30,
+      );
+
+      expect(result.x).toBeCloseTo(430);
+      expect(result.y).toBeCloseTo(300);
+    });
   });
 });
