@@ -20,6 +20,7 @@ import { createBothLateralProjectiles } from "../systems/playerLateralShooting";
 import { updateProjectiles } from "../systems/projectileManager";
 import { updateEnemyPosition } from "../systems/enemyMovement";
 import { areEntitiesColliding } from "../systems/entityCollision";
+import { applyDamageToPlayer } from "../systems/damageSystem";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -114,6 +115,10 @@ export function GameCanvas() {
 
       let projectileCooldownRemaining = 0;
       let lateralProjectileCooldownRemaining = 0;
+
+      let chaserContactCooldownRemaining = 0;
+
+      const chaserContactCooldownSeconds = 1;
 
       const projectileGraphics = new Map<string, Graphics>();
 
@@ -356,6 +361,29 @@ export function GameCanvas() {
         );
 
         updateChaserAppearance(isChaserColliding);
+
+        chaserContactCooldownRemaining = Math.max(
+          0,
+          chaserContactCooldownRemaining - deltaTimeSeconds,
+        );
+
+        if (
+          isChaserColliding &&
+          chaserContactCooldownRemaining === 0 &&
+          currentPlayer.health > 0
+        ) {
+          currentPlayer = applyDamageToPlayer(
+            currentPlayer,
+            DEFAULT_GAME_CONFIG.chaser.contactDamage,
+          );
+
+          chaserContactCooldownRemaining =
+            chaserContactCooldownSeconds;
+
+          console.log(
+            `Player health: ${currentPlayer.health}`,
+          );
+        }
 
         projectileCooldownRemaining = Math.max(
           0,
