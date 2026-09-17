@@ -6,8 +6,12 @@ import {
   updatePlayerTransform,
   type MovementInput,
 } from "../systems/playerMovement";
-import { clampPlayerPosition, type ArenaBounds } from "../systems/arenaBounds";
+import {
+  clampPlayerPosition,
+  type ArenaBounds,
+} from "../systems/arenaBounds";
 import { createFrontalProjectile } from "../systems/playerShooting";
+import { createBothLateralProjectiles } from "../systems/playerLateralShooting";
 import { updateProjectiles } from "../systems/projectileManager";
 
 export function GameCanvas() {
@@ -76,9 +80,12 @@ export function GameCanvas() {
       let currentPlayer = player;
 
       const weaponConfig = DEFAULT_GAME_CONFIG.frontalWeapon;
+      const lateralWeaponConfig = DEFAULT_GAME_CONFIG.lateralWeapon;
 
       let projectiles: ProjectileEntity[] = [];
+
       let projectileCooldownRemaining = 0;
+      let lateralProjectileCooldownRemaining = 0;
 
       const projectileGraphics = new Map<string, Graphics>();
 
@@ -103,6 +110,25 @@ export function GameCanvas() {
         right: false,
       };
 
+      function addProjectileGraphic(
+        projectile: ProjectileEntity,
+        color: number,
+      ) {
+        const projectileGraphic = new Graphics()
+          .circle(0, 0, 5)
+          .fill({
+            color,
+          });
+
+        projectileGraphic.position.set(
+          projectile.transform.position.x,
+          projectile.transform.position.y,
+        );
+
+        application.stage.addChild(projectileGraphic);
+        projectileGraphics.set(projectile.id, projectileGraphic);
+      }
+
       function fireFrontalProjectile() {
         if (projectileCooldownRemaining > 0) {
           return;
@@ -116,33 +142,46 @@ export function GameCanvas() {
 
         projectiles = [...projectiles, projectile];
 
-        const projectileGraphic = new Graphics().circle(0, 0, 5).fill({
-          color: 0xffffff,
-        });
-
-        projectileGraphic.position.set(
-          projectile.transform.position.x,
-          projectile.transform.position.y,
-        );
-
-        application.stage.addChild(projectileGraphic);
-        projectileGraphics.set(projectile.id, projectileGraphic);
+        addProjectileGraphic(projectile, 0xffffff);
 
         projectileCooldownRemaining = weaponConfig.cooldownSeconds;
+      }
+
+      function fireLateralProjectiles() {
+        if (lateralProjectileCooldownRemaining > 0) {
+          return;
+        }
+
+        const lateralProjectiles = createBothLateralProjectiles(
+          currentPlayer,
+          lateralWeaponConfig,
+          `lateral-${crypto.randomUUID()}`,
+        );
+
+        projectiles = [...projectiles, ...lateralProjectiles];
+
+        for (const projectile of lateralProjectiles) {
+          addProjectileGraphic(projectile, 0xffd166);
+        }
+
+        lateralProjectileCooldownRemaining =
+          lateralWeaponConfig.cooldownSeconds;
       }
 
       function handleKeyDown(event: KeyboardEvent) {
         const key = event.key.toLowerCase();
 
         if (
-          key === "arrowup" ||
-          key === "arrowdown" ||
-          key === "arrowleft" ||
-          key === "arrowright" ||
-          event.code === "Space"
-        ) {
-          event.preventDefault();
-        }
+  key === "arrowup" ||
+  key === "arrowdown" ||
+  key === "arrowleft" ||
+  key === "arrowright" ||
+  event.code === "Space" ||
+  event.code === "ShiftLeft" ||
+  event.code === "ShiftRight"
+) {
+  event.preventDefault();
+}
 
         if (event.code === "Space" || event.key === " ") {
           if (!event.repeat) {
@@ -151,6 +190,19 @@ export function GameCanvas() {
 
           return;
         }
+
+        if (
+  event.code === "ShiftLeft" ||
+  event.code === "ShiftRight"
+) {
+  event.preventDefault();
+
+  if (!event.repeat) {
+    fireLateralProjectiles();
+  }
+
+  return;
+}
 
         switch (key) {
           case "w":
@@ -241,7 +293,15 @@ export function GameCanvas() {
           projectileCooldownRemaining - deltaTimeSeconds,
         );
 
-        projectiles = updateProjectiles(projectiles, deltaTimeSeconds);
+        lateralProjectileCooldownRemaining = Math.max(
+          0,
+          lateralProjectileCooldownRemaining - deltaTimeSeconds,
+        );
+
+        projectiles = updateProjectiles(
+          projectiles,
+          deltaTimeSeconds,
+        );
 
         const activeProjectileIds = new Set(
           projectiles.map((projectile) => projectile.id),
