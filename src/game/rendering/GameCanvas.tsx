@@ -23,6 +23,10 @@ import { areEntitiesColliding } from "../systems/entityCollision";
 import { applyDamageToPlayer } from "../systems/damageSystem";
 import { applyDamageToEnemy } from "../systems/enemyDamage";
 import { isPlayerDefeated } from "../systems/playerStatus";
+import {
+  addEnemyDefeatScore,
+  createInitialScore,
+} from "../systems/scoreSystem";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -109,6 +113,8 @@ export function GameCanvas() {
       };
 
       let currentChaser = chaser;
+
+      let currentScore = createInitialScore();
 
       const weaponConfig = DEFAULT_GAME_CONFIG.frontalWeapon;
       const lateralWeaponConfig = DEFAULT_GAME_CONFIG.lateralWeapon;
@@ -518,7 +524,11 @@ export function GameCanvas() {
               isChaserDefeated = true;
               chaserShip.visible = false;
 
-              console.log("Chaser defeated");
+              currentScore = addEnemyDefeatScore(currentScore);
+
+              console.log(
+                `Chaser defeated. Current score: ${currentScore.score}`,
+              );
             }
 
             break;
