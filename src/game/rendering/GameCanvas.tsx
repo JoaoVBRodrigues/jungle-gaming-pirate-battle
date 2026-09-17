@@ -3,10 +3,12 @@ import { useEffect, useRef } from "react";
 import { Application, Graphics, Text } from "pixi.js";
 import type {
   EnemyEntity,
+  IslandEntity,
   PlayerEntity,
   ProjectileEntity,
 } from "../entities";
 import { DEFAULT_GAME_CONFIG } from "../config/gameConfig";
+import { DEFAULT_ISLANDS } from "../config/islandLayout";
 import {
   updatePlayerTransform,
   type MovementInput,
@@ -27,6 +29,10 @@ import {
   addEnemyDefeatScore,
   createInitialScore,
 } from "../systems/scoreSystem";
+import {
+  isPlayerCollidingWithIsland,
+  isProjectileCollidingWithIsland,
+} from "../systems/islandCollision";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -132,11 +138,44 @@ export function GameCanvas() {
 
       const projectileGraphics = new Map<string, Graphics>();
 
+      const islands: IslandEntity[] = DEFAULT_ISLANDS.map(
+        (island) => ({
+          ...island,
+          position: {
+            ...island.position,
+          },
+        }),
+      );
+
+      const islandGraphics = new Map<string, Graphics>();
+
+      for (const island of islands) {
+        const islandGraphic = new Graphics()
+          .circle(0, 0, island.radius)
+          .fill({
+            color: 0x527d50,
+          })
+          .stroke({
+            color: 0x9dbb75,
+            width: 4,
+          });
+
+        islandGraphic.position.set(
+          island.position.x,
+          island.position.y,
+        );
+
+        islandGraphics.set(island.id, islandGraphic);
+        application.stage.addChild(islandGraphic);
+      }
+
       const playerShip = new Graphics();
 
-      playerShip.poly([0, -25, 18, 20, 0, 12, -18, 20]).fill({
-        color: 0xf4c542,
-      });
+      playerShip
+        .poly([0, -25, 18, 20, 0, 12, -18, 20])
+        .fill({
+          color: 0xf4c542,
+        });
 
       playerShip.position.set(
         currentPlayer.transform.position.x,
@@ -197,9 +236,11 @@ export function GameCanvas() {
         projectile: ProjectileEntity,
         color: number,
       ) {
-        const projectileGraphic = new Graphics().circle(0, 0, 5).fill({
-          color,
-        });
+        const projectileGraphic = new Graphics()
+          .circle(0, 0, 5)
+          .fill({
+            color,
+          });
 
         projectileGraphic.position.set(
           projectile.transform.position.x,
@@ -374,6 +415,34 @@ export function GameCanvas() {
         );
       }
 
+      function isPlayerCollidingWithAnyIsland(
+        candidatePlayer: PlayerEntity,
+      ): boolean {
+        return islands.some((island) =>
+          isPlayerCollidingWithIsland(
+            candidatePlayer,
+            island,
+            20,
+          ),
+        );
+      }
+
+      function removeProjectilesCollidingWithIslands() {
+        for (const projectile of [...projectiles]) {
+          const isCollidingWithIsland = islands.some((island) =>
+            isProjectileCollidingWithIsland(
+              projectile,
+              island,
+              5,
+            ),
+          );
+
+          if (isCollidingWithIsland) {
+            removeProjectile(projectile.id);
+          }
+        }
+      }
+
       window.addEventListener("keydown", handleKeyDown);
       window.addEventListener("keyup", handleKeyUp);
 
@@ -400,13 +469,25 @@ export function GameCanvas() {
           arenaBounds,
         );
 
-        currentPlayer = {
+        const candidatePlayer: PlayerEntity = {
           ...nextPlayer,
           transform: {
             ...nextPlayer.transform,
             position: boundedPosition,
           },
         };
+
+        if (!isPlayerCollidingWithAnyIsland(candidatePlayer)) {
+          currentPlayer = candidatePlayer;
+        } else {
+          currentPlayer = {
+            ...currentPlayer,
+            transform: {
+              ...currentPlayer.transform,
+              rotation: nextPlayer.transform.rotation,
+            },
+          };
+        }
 
         playerShip.position.set(
           currentPlayer.transform.position.x,
@@ -497,8 +578,10 @@ export function GameCanvas() {
           deltaTimeSeconds,
         );
 
+        removeProjectilesCollidingWithIslands();
+
         if (!isChaserDefeated) {
-          for (const projectile of projectiles) {
+          for (const projectile of [...projectiles]) {
             if (
               projectile.owner !== "player" ||
               !isProjectileCollidingWithChaser(
