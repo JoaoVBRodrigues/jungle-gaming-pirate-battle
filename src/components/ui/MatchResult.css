@@ -69,3 +69,22 @@
     outline: 3px solid #9dbbff;
     outline-offset: 3px;
 }
+
+.match-result__secondary-button {
+    width: 100%;
+    margin-top: 0.75rem;
+    padding: 0.7rem 1rem;
+    color: #d7e3e8;
+    background: transparent;
+    border: 1px solid #7894a3;
+    cursor: pointer;
+}
+
+.match-result__secondary-button:hover {
+    background: #294252;
+}
+
+.match-result__secondary-button:focus-visible {
+    outline: 3px solid #9dbbff;
+    outline-offset: 3px;
+}

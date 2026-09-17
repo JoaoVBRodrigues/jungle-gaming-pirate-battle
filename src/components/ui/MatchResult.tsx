@@ -4,6 +4,7 @@ import './MatchResult.css';
 
 interface MatchResultProps {
     onPlayAgain: () => void;
+    onBackToMenu: () => void;
 }
 
 function formatDuration(totalSeconds: number): string {
@@ -14,7 +15,10 @@ function formatDuration(totalSeconds: number): string {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
-export function MatchResult({ onPlayAgain }: MatchResultProps) {
+export function MatchResult({
+    onPlayAgain,
+    onBackToMenu,
+}: MatchResultProps) {
     const gameState = useGameState();
 
     if (gameState.status !== 'finished') {
@@ -58,6 +62,13 @@ export function MatchResult({ onPlayAgain }: MatchResultProps) {
                     onClick={onPlayAgain}
                 >
                     Play Again
+                </button>
+                <button
+                    className="match-result__secondary-button"
+                    type="button"
+                    onClick={onBackToMenu}
+                >
+                    Back to Menu
                 </button>
             </div>
         </section>
