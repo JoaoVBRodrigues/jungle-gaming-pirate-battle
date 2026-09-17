@@ -152,48 +152,6 @@ export function GameCanvas({
 
             let currentPlayer = player;
 
-            const chaser: EnemyEntity = {
-                id: "chaser-1",
-                type: "chaser",
-                transform: {
-                    position: {
-                        x: 150,
-                        y: 150,
-                    },
-                    rotation: 0,
-                },
-                velocity: {
-                    x: 0,
-                    y: 0,
-                },
-                movementSpeed: matchConfig.chaser.movementSpeed,
-                health: matchConfig.chaser.health,
-                maxHealth: matchConfig.chaser.health,
-            };
-
-            let currentChaser = chaser;
-
-            const shooter: EnemyEntity = {
-                id: "shooter-1",
-                type: "shooter",
-                transform: {
-                    position: {
-                        x: 650,
-                        y: 450,
-                    },
-                    rotation: 0,
-                },
-                velocity: {
-                    x: 0,
-                    y: 0,
-                },
-                movementSpeed: matchConfig.shooter.movementSpeed,
-                health: matchConfig.shooter.health,
-                maxHealth: matchConfig.shooter.health,
-            };
-
-            let currentShooter = shooter;
-
             let currentScore = createInitialScore();
 
             let currentGameState = startGame(
@@ -214,19 +172,12 @@ export function GameCanvas({
 
             let projectileCooldownRemaining = 0;
             let lateralProjectileCooldownRemaining = 0;
-            let chaserContactCooldownRemaining = 0;
-            let shooterContactCooldownRemaining = 0;
-            let shooterAttackCooldownRemaining = 1;
-
             const chaserContactCooldownSeconds = 1;
-            const shooterContactCooldownSeconds = 1;
             const shooterAttackRange = shooterConfig.attackRange;
             const shooterProjectileRadius = 6;
             const playerCollisionRadius = 20;
 
             let isGameOver = false;
-            let isChaserDefeated = false;
-            let isShooterDefeated = false;
             let spawnCooldownRemaining =
                 matchConfig.spawn.intervalSeconds;
             let spawnSequence = 0;
@@ -279,54 +230,6 @@ export function GameCanvas({
             playerShip.position.set(
                 currentPlayer.transform.position.x,
                 currentPlayer.transform.position.y,
-            );
-
-            const chaserShip = new Graphics();
-
-            function updateChaserAppearance(isColliding: boolean) {
-                chaserShip.clear();
-
-                chaserShip
-                    .circle(0, 0, isColliding ? 24 : 18)
-                    .fill({
-                        color: isColliding ? 0xffcc00 : 0xd94f4f,
-                    });
-            }
-
-            updateChaserAppearance(false);
-
-            chaserShip.position.set(
-                currentChaser.transform.position.x,
-                currentChaser.transform.position.y,
-            );
-
-            const shooterShip = new Graphics();
-
-            function updateShooterAppearance(isAttacking: boolean) {
-                shooterShip.clear();
-
-                shooterShip
-                    .rect(-18, -18, 36, 36)
-                    .fill({
-                        color: isAttacking ? 0xff9900 : 0x8b5cf6,
-                    })
-                    .stroke({
-                        color: 0xe0c3ff,
-                        width: 3,
-                    });
-
-                shooterShip
-                    .circle(0, 0, 7)
-                    .fill({
-                        color: 0x27134d,
-                    });
-            }
-
-            updateShooterAppearance(false);
-
-            shooterShip.position.set(
-                currentShooter.transform.position.x,
-                currentShooter.transform.position.y,
             );
 
             const gameOverText = new Text({
@@ -398,11 +301,6 @@ export function GameCanvas({
 
                 gameOverText.visible = true;
 
-                chaserShip.clear();
-                chaserShip.circle(0, 0, 24).fill({
-                    color: 0x8b0000,
-                });
-
                 for (const graphic of spawnedEnemyGraphics.values()) {
                     graphic.destroy();
                 }
@@ -439,8 +337,6 @@ export function GameCanvas({
             publishGameState();
 
             application.stage.addChild(playerShip);
-            application.stage.addChild(chaserShip);
-            application.stage.addChild(shooterShip);
             application.stage.addChild(gameOverText);
 
             currentContainer.appendChild(application.canvas);
@@ -611,40 +507,6 @@ export function GameCanvas({
 
                 lateralProjectileCooldownRemaining =
                     lateralWeaponConfig.cooldownSeconds;
-            }
-
-            function fireShooterProjectile() {
-                if (
-                    isGameOver ||
-                    currentGameState.status !== "playing" ||
-                    isShooterDefeated ||
-                    shooterAttackCooldownRemaining > 0
-                ) {
-                    return;
-                }
-
-                const distanceToPlayer = calculateDistance(
-                    currentShooter.transform.position,
-                    currentPlayer.transform.position,
-                );
-
-                if (distanceToPlayer > shooterAttackRange) {
-                    return;
-                }
-
-                const projectile = createEnemyProjectile(
-                    currentShooter,
-                    currentPlayer,
-                    shooterConfig,
-                    `enemy-projectile-${crypto.randomUUID()}`,
-                );
-
-                projectiles = [...projectiles, projectile];
-
-                addProjectileGraphic(projectile, 0x66ccff);
-
-                shooterAttackCooldownRemaining =
-                    shooterConfig.attackCooldownSeconds;
             }
 
             function handleKeyDown(event: KeyboardEvent) {
@@ -1192,131 +1054,6 @@ export function GameCanvas({
                     );
                 }
 
-                if (!isChaserDefeated) {
-                    currentChaser = updateEnemyPosition(
-                        currentChaser,
-                        currentPlayer,
-                        deltaTimeSeconds,
-                    );
-
-                    chaserShip.position.set(
-                        currentChaser.transform.position.x,
-                        currentChaser.transform.position.y,
-                    );
-
-                    const isChaserColliding =
-                        areEntitiesColliding(
-                            currentPlayer,
-                            currentChaser,
-                            {
-                                playerRadius: 20,
-                                enemyRadius: 18,
-                            },
-                        );
-
-                    updateChaserAppearance(isChaserColliding);
-
-                    chaserContactCooldownRemaining = Math.max(
-                        0,
-                        chaserContactCooldownRemaining -
-                            deltaTimeSeconds,
-                    );
-
-                    if (
-                        isChaserColliding &&
-                        chaserContactCooldownRemaining === 0 &&
-                        currentPlayer.health > 0
-                    ) {
-                        currentPlayer = applyDamageToPlayer(
-                            currentPlayer,
-                            matchConfig.chaser
-                                .contactDamage,
-                        );
-
-                        chaserContactCooldownRemaining =
-                            chaserContactCooldownSeconds;
-
-                        isChaserDefeated = true;
-                        chaserShip.visible = false;
-
-                        console.log(
-                            `Player health: ${currentPlayer.health}`,
-                        );
-                    }
-                }
-
-                if (!isShooterDefeated) {
-                    currentShooter = updateShooterPosition(
-                        currentShooter,
-                        currentPlayer,
-                        deltaTimeSeconds,
-                    );
-
-                    shooterShip.position.set(
-                        currentShooter.transform.position.x,
-                        currentShooter.transform.position.y,
-                    );
-
-                    shooterShip.rotation =
-                        currentShooter.transform.rotation;
-
-                    const distanceToPlayer = calculateDistance(
-                        currentShooter.transform.position,
-                        currentPlayer.transform.position,
-                    );
-
-                    const isShooterInAttackRange =
-                        distanceToPlayer <= shooterAttackRange;
-
-                    updateShooterAppearance(
-                        isShooterInAttackRange,
-                    );
-
-                    const isShooterColliding =
-                        areEntitiesColliding(
-                            currentPlayer,
-                            currentShooter,
-                            {
-                                playerRadius: playerCollisionRadius,
-                                enemyRadius: 18,
-                            },
-                        );
-
-                    shooterContactCooldownRemaining = Math.max(
-                        0,
-                        shooterContactCooldownRemaining -
-                            deltaTimeSeconds,
-                    );
-
-                    if (
-                        isShooterColliding &&
-                        shooterContactCooldownRemaining === 0 &&
-                        currentPlayer.health > 0
-                    ) {
-                        currentPlayer = applyDamageToPlayer(
-                            currentPlayer,
-                            shooterConfig.contactDamage,
-                        );
-
-                        shooterContactCooldownRemaining =
-                            shooterContactCooldownSeconds;
-
-                        console.log(
-                            `Player hit by Shooter contact. Health: ${currentPlayer.health}`,
-                        );
-                    }
-
-                    shooterAttackCooldownRemaining = Math.max(
-                        0,
-                        shooterAttackCooldownRemaining -
-                            deltaTimeSeconds,
-                    );
-
-                    if (isShooterInAttackRange) {
-                        fireShooterProjectile();
-                    }
-                }
-
                 if (isPlayerDefeated(currentPlayer)) {
                     endCurrentGame();
 
@@ -1343,88 +1080,6 @@ export function GameCanvas({
 
                 removeProjectilesCollidingWithIslands();
                 removeProjectilesOutsideArena();
-
-                if (!isChaserDefeated) {
-                    for (const projectile of [...projectiles]) {
-                        if (
-                            projectile.owner !== "player" ||
-                            !isProjectileCollidingWithEnemy(
-                                projectile,
-                                currentChaser,
-                                18,
-                            )
-                        ) {
-                            continue;
-                        }
-
-                        currentChaser = applyDamageToEnemy(
-                            currentChaser,
-                            projectile.damage,
-                        );
-
-                        console.log(
-                            `Chaser health: ${currentChaser.health}`,
-                        );
-
-                        removeProjectile(projectile.id);
-
-                        if (currentChaser.health <= 0) {
-                            isChaserDefeated = true;
-                            chaserShip.visible = false;
-
-                            currentScore = addEnemyDefeatScore(
-                                currentScore,
-                            );
-
-                            console.log(
-                                `Chaser defeated. Current score: ${currentScore.score}`,
-                            );
-                        }
-
-                        break;
-                    }
-                }
-
-                if (!isShooterDefeated) {
-                    for (const projectile of [...projectiles]) {
-                        if (
-                            projectile.owner !== "player" ||
-                            !isProjectileCollidingWithEnemy(
-                                projectile,
-                                currentShooter,
-                                18,
-                            )
-                        ) {
-                            continue;
-                        }
-
-                        currentShooter = applyDamageToEnemy(
-                            currentShooter,
-                            projectile.damage,
-                        );
-
-                        console.log(
-                            `Shooter health: ${currentShooter.health}`,
-                        );
-
-                        removeProjectile(projectile.id);
-
-                        if (currentShooter.health <= 0) {
-                            isShooterDefeated = true;
-                            shooterShip.visible = false;
-
-                            currentScore = addEnemyDefeatScore(
-                                currentScore,
-                            );
-
-                            console.log(
-                                `Shooter defeated. Current score: ${currentScore.score}`,
-                            );
-                        }
-
-                        break;
-                    }
-                }
 
                 for (const enemy of [...spawnedEnemies]) {
                     for (const projectile of [...projectiles]) {
