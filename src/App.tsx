@@ -39,8 +39,11 @@ function App() {
     }
 
     return (
-        <main>
-            <h1>Pirate Battle</h1>
+        <main className={`app-shell app-shell--${screen}`}>
+            <header className="app-header">
+                <h1>Pirate Battle</h1>
+                <p>Sailing the open sea</p>
+            </header>
             {screen === 'menu' && (
                 <MainMenu
                     onNavigate={setScreen}

@@ -1,11 +1,10 @@
 import { useEffect, useRef } from "react";
 import {
     Application,
-    Assets,
     Graphics,
+    Sprite,
     Text,
     TilingSprite,
-    type Texture,
 } from "pixi.js";
 import { INITIAL_GAME_STATE } from "../simulation/gameState";
 import {
@@ -57,11 +56,9 @@ import {
 } from "../systems/islandCollision";
 import { createEnemyAtSpawn } from "../systems/enemySpawn";
 import type { EnemyType } from "../entities";
+import { loadGameTextures } from "./gameAssets";
 
-const waterTextureUrl = new URL(
-    "../../../assets/png/default/tiles/tile_73.png",
-    import.meta.url,
-).href;
+type EntityVisual = Graphics | Sprite;
 
 interface GameCanvasProps {
     config?: GameConfig;
@@ -107,19 +104,16 @@ export function GameCanvas({
                 return;
             }
 
-            try {
-                const waterTexture = await Assets.load<Texture>(
-                    waterTextureUrl,
-                );
+            const textures = await loadGameTextures();
+
+            if (textures.water) {
                 application.stage.addChild(
                     new TilingSprite({
-                        texture: waterTexture,
+                        texture: textures.water,
                         width: 800,
                         height: 600,
                     }),
                 );
-            } catch {
-                // Keep the existing background color if the optional asset fails.
             }
 
             const arenaBounds: ArenaBounds = {
@@ -183,8 +177,8 @@ export function GameCanvas({
             let spawnSequence = 0;
             let spawnedEnemies: EnemyEntity[] = [];
 
-            const projectileGraphics = new Map<string, Graphics>();
-            const spawnedEnemyGraphics = new Map<string, Graphics>();
+            const projectileGraphics = new Map<string, EntityVisual>();
+            const spawnedEnemyGraphics = new Map<string, EntityVisual>();
             const spawnedEnemyContactCooldowns = new Map<string, number>();
             const spawnedShooterCooldowns = new Map<string, number>();
 
@@ -197,18 +191,27 @@ export function GameCanvas({
                 }),
             );
 
-            const islandGraphics = new Map<string, Graphics>();
+            const islandGraphics = new Map<string, EntityVisual>();
 
             for (const island of islands) {
-                const islandGraphic = new Graphics()
-                    .circle(0, 0, island.radius)
-                    .fill({
-                        color: 0x527d50,
-                    })
-                    .stroke({
-                        color: 0x9dbb75,
-                        width: 4,
-                    });
+                const islandGraphic = textures.island
+                    ? new Sprite(textures.island)
+                    : new Graphics()
+                          .circle(0, 0, island.radius)
+                          .fill({
+                              color: 0x527d50,
+                          })
+                          .stroke({
+                              color: 0x9dbb75,
+                              width: 4,
+                          });
+
+                if (islandGraphic instanceof Sprite) {
+                    islandGraphic.anchor.set(0.5);
+                    islandGraphic.scale.set(
+                        (island.radius * 2) / islandGraphic.width,
+                    );
+                }
 
                 islandGraphic.position.set(
                     island.position.x,
@@ -219,13 +222,18 @@ export function GameCanvas({
                 application.stage.addChild(islandGraphic);
             }
 
-            const playerShip = new Graphics();
+            const playerShip = textures.playerShip
+                ? new Sprite(textures.playerShip)
+                : new Graphics()
+                      .poly([0, -25, 18, 20, 0, 12, -18, 20])
+                      .fill({
+                          color: 0xf4c542,
+                      });
 
-            playerShip
-                .poly([0, -25, 18, 20, 0, 12, -18, 20])
-                .fill({
-                    color: 0xf4c542,
-                });
+            if (playerShip instanceof Sprite) {
+                playerShip.anchor.set(0.5);
+                playerShip.scale.set(0.4);
+            }
 
             playerShip.position.set(
                 currentPlayer.transform.position.x,
@@ -370,9 +378,13 @@ export function GameCanvas({
             ];
 
             function updateSpawnedEnemyAppearance(
-                graphic: Graphics,
+                graphic: EntityVisual,
                 enemy: EnemyEntity,
             ) {
+                if (graphic instanceof Sprite) {
+                    return;
+                }
+
                 graphic.clear();
 
                 if (enemy.type === "chaser") {
@@ -417,7 +429,22 @@ export function GameCanvas({
                     return;
                 }
 
-                const graphic = new Graphics();
+                const texture =
+                    textures.enemyShips.length > 0
+                        ? textures.enemyShips[
+                              spawnSequence %
+                                  textures.enemyShips.length
+                          ]
+                        : undefined;
+                const graphic = texture
+                    ? new Sprite(texture)
+                    : new Graphics();
+
+                if (graphic instanceof Sprite) {
+                    graphic.anchor.set(0.5);
+                    graphic.scale.set(0.3);
+                }
+
                 updateSpawnedEnemyAppearance(graphic, enemy);
                 graphic.position.set(
                     enemy.transform.position.x,
@@ -439,11 +466,18 @@ export function GameCanvas({
                 projectile: ProjectileEntity,
                 color: number,
             ) {
-                const projectileGraphic = new Graphics()
-                    .circle(0, 0, 5)
-                    .fill({
-                        color,
-                    });
+                const projectileGraphic = textures.cannonBall
+                    ? new Sprite(textures.cannonBall)
+                    : new Graphics()
+                          .circle(0, 0, 5)
+                          .fill({
+                              color,
+                          });
+
+                if (projectileGraphic instanceof Sprite) {
+                    projectileGraphic.anchor.set(0.5);
+                    projectileGraphic.tint = color;
+                }
 
                 projectileGraphic.position.set(
                     projectile.transform.position.x,
@@ -992,6 +1026,8 @@ export function GameCanvas({
                                 nextEnemy.transform.position.x,
                                 nextEnemy.transform.position.y,
                             );
+                            enemyGraphic.rotation =
+                                nextEnemy.transform.rotation;
                         }
 
                         spawnedEnemies = spawnedEnemies.map(

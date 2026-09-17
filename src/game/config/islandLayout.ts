@@ -4,33 +4,33 @@ export const DEFAULT_ISLANDS: IslandEntity[] = [
   {
     id: "island-1",
     position: {
-      x: 180,
-      y: 180,
+      x: 155,
+      y: 145,
     },
-    radius: 45,
+    radius: 48,
   },
   {
     id: "island-2",
     position: {
-      x: 620,
-      y: 180,
+      x: 645,
+      y: 150,
     },
-    radius: 55,
+    radius: 52,
   },
   {
     id: "island-3",
     position: {
-      x: 180,
-      y: 450,
+      x: 255,
+      y: 445,
     },
-    radius: 35,
+    radius: 38,
   },
   {
     id: "island-4",
     position: {
-      x: 620,
-      y: 450,
+      x: 625,
+      y: 455,
     },
-    radius: 45,
+    radius: 44,
   },
 ];
