@@ -3,6 +3,7 @@ import type { PlayerEntity } from "../entities";
 import type { WeaponConfig } from "../config/gameConfig";
 import {
   calculateLateralDirection,
+  createBothLateralProjectiles,
   createLateralProjectiles,
 } from "./playerLateralShooting";
 
@@ -116,6 +117,58 @@ describe("calculateLateralDirection", () => {
         x: 400,
         y: 280,
       });
+    });
+  });
+
+  describe("createBothLateralProjectiles", () => {
+    const weapon: WeaponConfig = {
+      damage: 15,
+      projectileSpeed: 350,
+      projectileLifetimeSeconds: 2,
+      cooldownSeconds: 1,
+    };
+
+    it("creates three projectiles for each side", () => {
+      const projectiles = createBothLateralProjectiles(
+        player,
+        weapon,
+        "lateral",
+      );
+
+      expect(projectiles).toHaveLength(6);
+    });
+
+    it("creates unique projectile identifiers", () => {
+      const projectiles = createBothLateralProjectiles(
+        player,
+        weapon,
+        "lateral",
+      );
+
+      const projectileIds = projectiles.map((projectile) => projectile.id);
+
+      expect(new Set(projectileIds).size).toBe(6);
+    });
+
+    it("creates projectiles moving in opposite directions", () => {
+      const projectiles = createBothLateralProjectiles(
+        player,
+        weapon,
+        "lateral",
+      );
+
+      const leftProjectiles = projectiles.slice(0, 3);
+      const rightProjectiles = projectiles.slice(3, 6);
+
+      for (const projectile of leftProjectiles) {
+        expect(projectile.velocity.x).toBeCloseTo(-350);
+        expect(projectile.velocity.y).toBeCloseTo(0);
+      }
+
+      for (const projectile of rightProjectiles) {
+        expect(projectile.velocity.x).toBeCloseTo(350);
+        expect(projectile.velocity.y).toBeCloseTo(0);
+      }
     });
   });
 });

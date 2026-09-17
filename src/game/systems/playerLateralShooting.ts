@@ -64,5 +64,27 @@ export function createLateralProjectiles(
       damage: weapon.damage,
       remainingLifetimeSeconds: weapon.projectileLifetimeSeconds,
     };
-  });
+  }); 
+}
+
+export function createBothLateralProjectiles(
+  player: PlayerEntity,
+  weapon: WeaponConfig,
+  projectileIdPrefix: string,
+): ProjectileEntity[] {
+  const leftProjectiles = createLateralProjectiles(
+    player,
+    weapon,
+    "left",
+    `${projectileIdPrefix}-left`,
+  );
+
+  const rightProjectiles = createLateralProjectiles(
+    player,
+    weapon,
+    "right",
+    `${projectileIdPrefix}-right`,
+  );
+
+  return [...leftProjectiles, ...rightProjectiles];
 }
