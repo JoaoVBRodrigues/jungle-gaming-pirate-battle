@@ -21,6 +21,7 @@ import { updateProjectiles } from "../systems/projectileManager";
 import { updateEnemyPosition } from "../systems/enemyMovement";
 import { areEntitiesColliding } from "../systems/entityCollision";
 import { applyDamageToPlayer } from "../systems/damageSystem";
+import { applyDamageToEnemy } from "../systems/enemyDamage";
 import { isPlayerDefeated } from "../systems/playerStatus";
 
 export function GameCanvas() {
@@ -121,6 +122,7 @@ export function GameCanvas() {
       const chaserContactCooldownSeconds = 1;
 
       let isGameOver = false;
+      let isChaserDefeated = false;
 
       const projectileGraphics = new Map<string, Graphics>();
 
@@ -332,6 +334,40 @@ export function GameCanvas() {
         }
       }
 
+      function isProjectileCollidingWithChaser(
+        projectile: ProjectileEntity,
+        enemy: EnemyEntity,
+      ): boolean {
+        const deltaX =
+          projectile.transform.position.x -
+          enemy.transform.position.x;
+
+        const deltaY =
+          projectile.transform.position.y -
+          enemy.transform.position.y;
+
+        const distance = Math.sqrt(
+          deltaX * deltaX + deltaY * deltaY,
+        );
+
+        const collisionDistance = 5 + 18;
+
+        return distance <= collisionDistance;
+      }
+
+      function removeProjectile(projectileId: string) {
+        const graphic = projectileGraphics.get(projectileId);
+
+        if (graphic) {
+          graphic.destroy();
+          projectileGraphics.delete(projectileId);
+        }
+
+        projectiles = projectiles.filter(
+          (projectile) => projectile.id !== projectileId,
+        );
+      }
+
       window.addEventListener("keydown", handleKeyDown);
       window.addEventListener("keyup", handleKeyUp);
 
@@ -373,53 +409,56 @@ export function GameCanvas() {
 
         playerShip.rotation = currentPlayer.transform.rotation;
 
-        currentChaser = updateEnemyPosition(
-          currentChaser,
-          currentPlayer,
-          deltaTimeSeconds,
-        );
-
-        chaserShip.position.set(
-          currentChaser.transform.position.x,
-          currentChaser.transform.position.y,
-        );
-
-        const isChaserColliding = areEntitiesColliding(
-          currentPlayer,
-          currentChaser,
-          {
-            playerRadius: 20,
-            enemyRadius: 18,
-          },
-        );
-
-        updateChaserAppearance(isChaserColliding);
-
-        chaserContactCooldownRemaining = Math.max(
-          0,
-          chaserContactCooldownRemaining - deltaTimeSeconds,
-        );
-
-        if (
-          isChaserColliding &&
-          chaserContactCooldownRemaining === 0 &&
-          currentPlayer.health > 0
-        ) {
-          currentPlayer = applyDamageToPlayer(
+        if (!isChaserDefeated) {
+          currentChaser = updateEnemyPosition(
+            currentChaser,
             currentPlayer,
-            DEFAULT_GAME_CONFIG.chaser.contactDamage,
+            deltaTimeSeconds,
           );
 
-          chaserContactCooldownRemaining =
-            chaserContactCooldownSeconds;
-
-          console.log(
-            `Player health: ${currentPlayer.health}`,
+          chaserShip.position.set(
+            currentChaser.transform.position.x,
+            currentChaser.transform.position.y,
           );
+
+          const isChaserColliding = areEntitiesColliding(
+            currentPlayer,
+            currentChaser,
+            {
+              playerRadius: 20,
+              enemyRadius: 18,
+            },
+          );
+
+          updateChaserAppearance(isChaserColliding);
+
+          chaserContactCooldownRemaining = Math.max(
+            0,
+            chaserContactCooldownRemaining - deltaTimeSeconds,
+          );
+
+          if (
+            isChaserColliding &&
+            chaserContactCooldownRemaining === 0 &&
+            currentPlayer.health > 0
+          ) {
+            currentPlayer = applyDamageToPlayer(
+              currentPlayer,
+              DEFAULT_GAME_CONFIG.chaser.contactDamage,
+            );
+
+            chaserContactCooldownRemaining =
+              chaserContactCooldownSeconds;
+
+            console.log(
+              `Player health: ${currentPlayer.health}`,
+            );
+          }
         }
 
         if (isPlayerDefeated(currentPlayer)) {
           isGameOver = true;
+
           movementInput.forward = false;
           movementInput.backward = false;
           movementInput.left = false;
@@ -451,6 +490,40 @@ export function GameCanvas() {
           projectiles,
           deltaTimeSeconds,
         );
+
+        if (!isChaserDefeated) {
+          for (const projectile of projectiles) {
+            if (
+              projectile.owner !== "player" ||
+              !isProjectileCollidingWithChaser(
+                projectile,
+                currentChaser,
+              )
+            ) {
+              continue;
+            }
+
+            currentChaser = applyDamageToEnemy(
+              currentChaser,
+              projectile.damage,
+            );
+
+            console.log(
+              `Chaser health: ${currentChaser.health}`,
+            );
+
+            removeProjectile(projectile.id);
+
+            if (currentChaser.health <= 0) {
+              isChaserDefeated = true;
+              chaserShip.visible = false;
+
+              console.log("Chaser defeated");
+            }
+
+            break;
+          }
+        }
 
         const activeProjectileIds = new Set(
           projectiles.map((projectile) => projectile.id),
