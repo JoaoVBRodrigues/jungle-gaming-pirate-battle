@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayerEntity } from '../entities';
 import {
+    calculatePlayerRotationDelta,
     calculatePlayerVelocity,
     type MovementInput,
 } from './playerMovement';
@@ -54,5 +55,43 @@ describe('calculatePlayerVelocity', () => {
             x: 0,
             y: 100,
         });
+    }); 
+});
+
+describe('calculatePlayerRotationDelta', () => {
+    it('rotates right', () => {
+        const rotationDelta = calculatePlayerRotationDelta(
+            player,
+            {
+                ...noInput,
+                right: true,
+            },
+            0.5,
+        );
+
+        expect(rotationDelta).toBe(1);
+    });
+
+    it('rotates left', () => {
+        const rotationDelta = calculatePlayerRotationDelta(
+            player,
+            {
+                ...noInput,
+                left: true,
+            },
+            0.5,
+        );
+
+        expect(rotationDelta).toBe(-1);
+    });
+
+    it('does not rotate without input', () => {
+        const rotationDelta = calculatePlayerRotationDelta(
+            player,
+            noInput,
+            0.5,
+        );
+
+        expect(rotationDelta).toBe(0);
     });
 });
