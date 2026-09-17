@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
 import { Application, Graphics } from "pixi.js";
-import type { PlayerEntity } from "../entities";
+import type { PlayerEntity, ProjectileEntity } from "../entities";
+import { DEFAULT_GAME_CONFIG } from "../config/gameConfig";
 import {
   updatePlayerTransform,
   type MovementInput,
 } from "../systems/playerMovement";
 import { clampPlayerPosition, type ArenaBounds } from "../systems/arenaBounds";
+import { createFrontalProjectile } from "../systems/playerShooting";
+import { updateProjectiles } from "../systems/projectileManager";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -72,6 +75,13 @@ export function GameCanvas() {
 
       let currentPlayer = player;
 
+      const weaponConfig = DEFAULT_GAME_CONFIG.frontalWeapon;
+
+      let projectiles: ProjectileEntity[] = [];
+      let projectileCooldownRemaining = 0;
+
+      const projectileGraphics = new Map<string, Graphics>();
+
       const playerShip = new Graphics();
 
       playerShip.poly([0, -25, 18, 20, 0, 12, -18, 20]).fill({
@@ -93,6 +103,34 @@ export function GameCanvas() {
         right: false,
       };
 
+      function fireFrontalProjectile() {
+        if (projectileCooldownRemaining > 0) {
+          return;
+        }
+
+        const projectile = createFrontalProjectile(
+          currentPlayer,
+          weaponConfig,
+          `projectile-${crypto.randomUUID()}`,
+        );
+
+        projectiles = [...projectiles, projectile];
+
+        const projectileGraphic = new Graphics().circle(0, 0, 5).fill({
+          color: 0xffffff,
+        });
+
+        projectileGraphic.position.set(
+          projectile.transform.position.x,
+          projectile.transform.position.y,
+        );
+
+        application.stage.addChild(projectileGraphic);
+        projectileGraphics.set(projectile.id, projectileGraphic);
+
+        projectileCooldownRemaining = weaponConfig.cooldownSeconds;
+      }
+
       function handleKeyDown(event: KeyboardEvent) {
         const key = event.key.toLowerCase();
 
@@ -100,9 +138,18 @@ export function GameCanvas() {
           key === "arrowup" ||
           key === "arrowdown" ||
           key === "arrowleft" ||
-          key === "arrowright"
+          key === "arrowright" ||
+          event.code === "Space"
         ) {
           event.preventDefault();
+        }
+
+        if (event.code === "Space" || event.key === " ") {
+          if (!event.repeat) {
+            fireFrontalProjectile();
+          }
+
+          return;
         }
 
         switch (key) {
@@ -188,6 +235,37 @@ export function GameCanvas() {
         );
 
         playerShip.rotation = currentPlayer.transform.rotation;
+
+        projectileCooldownRemaining = Math.max(
+          0,
+          projectileCooldownRemaining - deltaTimeSeconds,
+        );
+
+        projectiles = updateProjectiles(projectiles, deltaTimeSeconds);
+
+        const activeProjectileIds = new Set(
+          projectiles.map((projectile) => projectile.id),
+        );
+
+        for (const [projectileId, graphic] of projectileGraphics) {
+          if (!activeProjectileIds.has(projectileId)) {
+            graphic.destroy();
+            projectileGraphics.delete(projectileId);
+          }
+        }
+
+        for (const projectile of projectiles) {
+          const graphic = projectileGraphics.get(projectile.id);
+
+          if (!graphic) {
+            continue;
+          }
+
+          graphic.position.set(
+            projectile.transform.position.x,
+            projectile.transform.position.y,
+          );
+        }
       });
     }
 
