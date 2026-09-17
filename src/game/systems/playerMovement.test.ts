@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PlayerEntity } from '../entities';
 import {
+    calculateNextPlayerPosition,
     calculatePlayerRotationDelta,
     calculatePlayerVelocity,
     type MovementInput,
@@ -93,5 +94,37 @@ describe('calculatePlayerRotationDelta', () => {
         );
 
         expect(rotationDelta).toBe(0);
+    });
+});
+
+describe('calculateNextPlayerPosition', () => {
+    it('updates the player position using velocity and delta time', () => {
+        const movingPlayer: PlayerEntity = {
+            ...player,
+            transform: {
+                ...player.transform,
+                position: { x: 10, y: 20 },
+            },
+            velocity: {
+                x: 100,
+                y: -50,
+            },
+        };
+
+        expect(
+            calculateNextPlayerPosition(movingPlayer, 0.5),
+        ).toEqual({
+            x: 60,
+            y: -5,
+        });
+    });
+
+    it('keeps the same position when velocity is zero', () => {
+        expect(
+            calculateNextPlayerPosition(player, 1),
+        ).toEqual({
+            x: 0,
+            y: 0,
+        });
     });
 });

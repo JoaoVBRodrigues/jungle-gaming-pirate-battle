@@ -57,3 +57,15 @@ export function calculatePlayerRotationDelta(
 
   return direction * player.rotationSpeed * deltaTimeSeconds;
 }
+
+export function calculateNextPlayerPosition(
+    player: PlayerEntity,
+    deltaTimeSeconds: number,
+): Vector2 {
+    return {
+        x: player.transform.position.x
+            + player.velocity.x * deltaTimeSeconds,
+        y: player.transform.position.y
+            + player.velocity.y * deltaTimeSeconds,
+    };
+}
