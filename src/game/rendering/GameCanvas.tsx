@@ -1,5 +1,15 @@
 import { useEffect, useRef } from "react";
 import { Application, Graphics, Text } from "pixi.js";
+import { INITIAL_GAME_STATE } from "../simulation/gameState";
+import {
+    startGame,
+    finishGame,
+} from "../simulation/gameStateManager";
+import { updateGameTime } from "../simulation/gameTime";
+import {
+    resetGameState,
+    updateGameState,
+} from "../simulation/gameStateStore";
 import type {
     EnemyEntity,
     IslandEntity,
@@ -143,6 +153,15 @@ export function GameCanvas() {
 
             let currentScore = createInitialScore();
 
+            let currentGameState = startGame(
+                INITIAL_GAME_STATE,
+            );
+            let lastPublishedHealth = -1;
+            let lastPublishedMaxHealth = -1;
+            let lastPublishedScore = -1;
+            let lastPublishedRemainingTime = -1;
+            let lastPublishedStatus = currentGameState.status;
+
             const weaponConfig = DEFAULT_GAME_CONFIG.frontalWeapon;
             const lateralWeaponConfig =
                 DEFAULT_GAME_CONFIG.lateralWeapon;
@@ -277,6 +296,68 @@ export function GameCanvas() {
             gameOverText.anchor.set(0.5);
             gameOverText.position.set(400, 300);
             gameOverText.visible = false;
+
+            function publishGameState() {
+                const remainingTime = Math.max(
+                    0,
+                    Math.ceil(
+                        DEFAULT_GAME_CONFIG.matchDurationSeconds -
+                            currentGameState.elapsedTimeSeconds,
+                    ),
+                );
+
+                const hasChanged =
+                    currentPlayer.health !== lastPublishedHealth ||
+                    currentPlayer.maxHealth !==
+                        lastPublishedMaxHealth ||
+                    currentScore.score !== lastPublishedScore ||
+                    remainingTime !== lastPublishedRemainingTime ||
+                    currentGameState.status !== lastPublishedStatus;
+
+                if (!hasChanged) {
+                    return;
+                }
+
+                updateGameState({
+                    health: currentPlayer.health,
+                    maxHealth: currentPlayer.maxHealth,
+                    score: currentScore.score,
+                    remainingTime,
+                    status: currentGameState.status,
+                });
+
+                lastPublishedHealth = currentPlayer.health;
+                lastPublishedMaxHealth = currentPlayer.maxHealth;
+                lastPublishedScore = currentScore.score;
+                lastPublishedRemainingTime = remainingTime;
+                lastPublishedStatus = currentGameState.status;
+            }
+
+            function endCurrentGame() {
+                if (isGameOver) {
+                    return;
+                }
+
+                isGameOver = true;
+                currentGameState = finishGame(currentGameState);
+
+                movementInput.forward = false;
+                movementInput.backward = false;
+                movementInput.left = false;
+                movementInput.right = false;
+
+                gameOverText.visible = true;
+
+                chaserShip.clear();
+                chaserShip.circle(0, 0, 24).fill({
+                    color: 0x8b0000,
+                });
+
+                publishGameState();
+            }
+
+            resetGameState();
+            publishGameState();
 
             application.stage.addChild(playerShip);
             application.stage.addChild(chaserShip);
@@ -647,6 +728,17 @@ export function GameCanvas() {
 
                 const deltaTimeSeconds = ticker.deltaMS / 1000;
 
+                currentGameState = updateGameTime(
+                    currentGameState,
+                    deltaTimeSeconds,
+                    DEFAULT_GAME_CONFIG.matchDurationSeconds,
+                );
+
+                if (currentGameState.status === "finished") {
+                    endCurrentGame();
+                    return;
+                }
+
                 const nextPlayer = updatePlayerTransform(
                     currentPlayer,
                     movementInput,
@@ -813,19 +905,7 @@ export function GameCanvas() {
                 }
 
                 if (isPlayerDefeated(currentPlayer)) {
-                    isGameOver = true;
-
-                    movementInput.forward = false;
-                    movementInput.backward = false;
-                    movementInput.left = false;
-                    movementInput.right = false;
-
-                    gameOverText.visible = true;
-
-                    chaserShip.clear();
-                    chaserShip.circle(0, 0, 24).fill({
-                        color: 0x8b0000,
-                    });
+                    endCurrentGame();
 
                     console.log("Game over");
 
@@ -955,6 +1035,16 @@ export function GameCanvas() {
                     removeProjectile(projectile.id);
                     break;
                 }
+
+                if (isPlayerDefeated(currentPlayer)) {
+                    endCurrentGame();
+
+                    console.log("Game over");
+
+                    return;
+                }
+
+                publishGameState();
 
                 const activeProjectileIds = new Set(
                     projectiles.map((projectile) => projectile.id),
