@@ -1,15 +1,23 @@
 import { useEffect, useRef } from "react";
 import { Application, Graphics } from "pixi.js";
-import type { PlayerEntity, ProjectileEntity } from "../entities";
+import type {
+  EnemyEntity,
+  PlayerEntity,
+  ProjectileEntity,
+} from "../entities";
 import { DEFAULT_GAME_CONFIG } from "../config/gameConfig";
 import {
   updatePlayerTransform,
   type MovementInput,
 } from "../systems/playerMovement";
-import { clampPlayerPosition, type ArenaBounds } from "../systems/arenaBounds";
+import {
+  clampPlayerPosition,
+  type ArenaBounds,
+} from "../systems/arenaBounds";
 import { createFrontalProjectile } from "../systems/playerShooting";
 import { createBothLateralProjectiles } from "../systems/playerLateralShooting";
 import { updateProjectiles } from "../systems/projectileManager";
+import { updateEnemyPosition } from "../systems/enemyMovement";
 
 export function GameCanvas() {
   const canvasContainerRef = useRef<HTMLDivElement>(null);
@@ -76,6 +84,27 @@ export function GameCanvas() {
 
       let currentPlayer = player;
 
+      const chaser: EnemyEntity = {
+        id: "chaser-1",
+        type: "chaser",
+        transform: {
+          position: {
+            x: 150,
+            y: 150,
+          },
+          rotation: 0,
+        },
+        velocity: {
+          x: 0,
+          y: 0,
+        },
+        movementSpeed: DEFAULT_GAME_CONFIG.chaser.movementSpeed,
+        health: DEFAULT_GAME_CONFIG.chaser.health,
+        maxHealth: DEFAULT_GAME_CONFIG.chaser.health,
+      };
+
+      let currentChaser = chaser;
+
       const weaponConfig = DEFAULT_GAME_CONFIG.frontalWeapon;
       const lateralWeaponConfig = DEFAULT_GAME_CONFIG.lateralWeapon;
 
@@ -97,7 +126,20 @@ export function GameCanvas() {
         currentPlayer.transform.position.y,
       );
 
+      const chaserShip = new Graphics();
+
+      chaserShip.circle(0, 0, 18).fill({
+        color: 0xd94f4f,
+      });
+
+      chaserShip.position.set(
+        currentChaser.transform.position.x,
+        currentChaser.transform.position.y,
+      );
+
       application.stage.addChild(playerShip);
+      application.stage.addChild(chaserShip);
+
       currentContainer.appendChild(application.canvas);
 
       const movementInput: MovementInput = {
@@ -186,7 +228,10 @@ export function GameCanvas() {
           return;
         }
 
-        if (event.code === "ShiftLeft" || event.code === "ShiftRight") {
+        if (
+          event.code === "ShiftLeft" ||
+          event.code === "ShiftRight"
+        ) {
           event.preventDefault();
 
           if (!event.repeat) {
@@ -280,6 +325,17 @@ export function GameCanvas() {
 
         playerShip.rotation = currentPlayer.transform.rotation;
 
+        currentChaser = updateEnemyPosition(
+          currentChaser,
+          currentPlayer,
+          deltaTimeSeconds,
+        );
+
+        chaserShip.position.set(
+          currentChaser.transform.position.x,
+          currentChaser.transform.position.y,
+        );
+
         projectileCooldownRemaining = Math.max(
           0,
           projectileCooldownRemaining - deltaTimeSeconds,
@@ -290,7 +346,10 @@ export function GameCanvas() {
           lateralProjectileCooldownRemaining - deltaTimeSeconds,
         );
 
-        projectiles = updateProjectiles(projectiles, deltaTimeSeconds);
+        projectiles = updateProjectiles(
+          projectiles,
+          deltaTimeSeconds,
+        );
 
         const activeProjectileIds = new Set(
           projectiles.map((projectile) => projectile.id),
