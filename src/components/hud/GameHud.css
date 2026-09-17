@@ -10,6 +10,10 @@
 }
 
 .game-hud__item {
+    min-width: 0;
+}
+
+.game-hud__item {
     display: flex;
     min-width: 0;
     flex-direction: column;

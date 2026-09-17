@@ -60,6 +60,20 @@ import { loadGameTextures } from "./gameAssets";
 
 type EntityVisual = Graphics | Sprite;
 
+const LOGICAL_ARENA_WIDTH = 800;
+const LOGICAL_ARENA_HEIGHT = 600;
+
+function getVisualRotationForVelocity(
+    velocity: { x: number; y: number },
+    fallbackRotation = 0,
+): number {
+    if (velocity.x === 0 && velocity.y === 0) {
+        return fallbackRotation + Math.PI / 2;
+    }
+
+    return Math.atan2(velocity.y, velocity.x) + Math.PI / 2;
+}
+
 interface GameCanvasProps {
     config?: GameConfig;
 }
@@ -82,11 +96,12 @@ export function GameCanvas({
         let isInitialized = false;
         let removeKeyboardListeners = () => undefined;
         let removePauseListeners = () => undefined;
+        let removeResizeObserver = () => undefined;
 
         async function initializeGame() {
             await application.init({
-                width: 800,
-                height: 600,
+                width: LOGICAL_ARENA_WIDTH,
+                height: LOGICAL_ARENA_HEIGHT,
                 background: "#123047",
             });
 
@@ -104,6 +119,8 @@ export function GameCanvas({
                 return;
             }
 
+            const resizeTarget = currentContainer;
+
             const textures = await loadGameTextures();
 
             if (textures.water) {
@@ -117,8 +134,8 @@ export function GameCanvas({
             }
 
             const arenaBounds: ArenaBounds = {
-                width: 800,
-                height: 600,
+                width: LOGICAL_ARENA_WIDTH,
+                height: LOGICAL_ARENA_HEIGHT,
                 paddingX: 20,
                 paddingY: 25,
             };
@@ -294,6 +311,28 @@ export function GameCanvas({
                 lastPublishedStatus = currentGameState.status;
             }
 
+            function resizeRenderer() {
+                const width = Math.max(
+                    1,
+                    resizeTarget.clientWidth || window.innerWidth,
+                );
+                const height = Math.max(
+                    1,
+                    resizeTarget.clientHeight || window.innerHeight,
+                );
+                const scale = Math.min(
+                    width / LOGICAL_ARENA_WIDTH,
+                    height / LOGICAL_ARENA_HEIGHT,
+                );
+
+                application.renderer.resize(width, height);
+                application.stage.scale.set(scale);
+                application.stage.position.set(
+                    (width - LOGICAL_ARENA_WIDTH * scale) / 2,
+                    (height - LOGICAL_ARENA_HEIGHT * scale) / 2,
+                );
+            }
+
             function endCurrentGame() {
                 if (isGameOver) {
                     return;
@@ -348,6 +387,14 @@ export function GameCanvas({
             application.stage.addChild(gameOverText);
 
             currentContainer.appendChild(application.canvas);
+            application.canvas.className = "game-canvas";
+            resizeRenderer();
+
+            const resizeObserver = new ResizeObserver(resizeRenderer);
+            resizeObserver.observe(currentContainer);
+            removeResizeObserver = () => {
+                resizeObserver.disconnect();
+            };
 
             const movementInput: MovementInput = {
                 forward: false,
@@ -1027,7 +1074,9 @@ export function GameCanvas({
                                 nextEnemy.transform.position.y,
                             );
                             enemyGraphic.rotation =
-                                nextEnemy.transform.rotation;
+                                getVisualRotationForVelocity(
+                                    nextEnemy.velocity,
+                                );
                         }
 
                         spawnedEnemies = spawnedEnemies.map(
@@ -1079,7 +1128,10 @@ export function GameCanvas({
                             nextEnemy.transform.position.y,
                         );
                         enemyGraphic.rotation =
-                            nextEnemy.transform.rotation;
+                            getVisualRotationForVelocity(
+                                nextEnemy.velocity,
+                                nextEnemy.transform.rotation,
+                            );
                     }
 
                     spawnedEnemies = spawnedEnemies.map(
@@ -1227,6 +1279,9 @@ export function GameCanvas({
                         projectile.transform.position.x,
                         projectile.transform.position.y,
                     );
+                    graphic.rotation = getVisualRotationForVelocity(
+                        projectile.velocity,
+                    );
                 }
             });
         }
@@ -1238,6 +1293,7 @@ export function GameCanvas({
 
             removeKeyboardListeners();
             removePauseListeners();
+            removeResizeObserver();
 
             if (isInitialized) {
                 application.destroy(true);
@@ -1245,5 +1301,5 @@ export function GameCanvas({
         };
     }, [config]);
 
-    return <div ref={canvasContainerRef} />;
+    return <div className="game-canvas-container" ref={canvasContainerRef} />;
 }
