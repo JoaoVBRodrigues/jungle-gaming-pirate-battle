@@ -45,9 +45,10 @@ npm run test:e2e
 
 ## Known limitations
 
-- The current renderer still uses simple PixiJS `Graphics` for ships and entities. The water tile is loaded from `assets/` with a color fallback.
+- The renderer uses cached PNG textures for ships, projectiles, islands, and water, with `Graphics` fallbacks when an individual asset fails.
 - Ranking and history use browser MSW fixtures and local in-memory mock data; they are not a remote service.
 - Playwright currently covers the primary navigation flow. Combat and mobile scenarios still need broader coverage.
+- Basic mobile navigation and Options persistence are covered; full combat/touch automation is still limited.
 - Deploy configuration is not connected to a provider account.
 
 ```

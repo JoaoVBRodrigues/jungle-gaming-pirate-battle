@@ -1,4 +1,5 @@
 import type {
+  EnemyEntity,
   IslandEntity,
   PlayerEntity,
   ProjectileEntity,
@@ -38,4 +39,17 @@ export function isProjectileCollidingWithIsland(
   );
 
   return distance <= projectileRadius + island.radius;
+}
+
+export function isEnemyCollidingWithIsland(
+  enemy: EnemyEntity,
+  island: IslandEntity,
+  enemyRadius: number,
+): boolean {
+  const distance = calculateDistance(
+    enemy.transform.position,
+    island.position,
+  );
+
+  return distance <= enemyRadius + island.radius;
 }

@@ -51,6 +51,7 @@ import {
     createInitialScore,
 } from "../systems/scoreSystem";
 import {
+    isEnemyCollidingWithIsland,
     isPlayerCollidingWithIsland,
     isProjectileCollidingWithIsland,
 } from "../systems/islandCollision";
@@ -155,10 +156,10 @@ export function GameCanvas({
                     x: 0,
                     y: 0,
                 },
-                movementSpeed: 100,
-                rotationSpeed: 2,
-                health: 100,
-                maxHealth: 100,
+                movementSpeed: matchConfig.player.movementSpeed,
+                rotationSpeed: matchConfig.player.rotationSpeed,
+                health: matchConfig.player.health,
+                maxHealth: matchConfig.player.health,
             };
 
             let currentPlayer = player;
@@ -196,6 +197,11 @@ export function GameCanvas({
 
             const projectileGraphics = new Map<string, EntityVisual>();
             const spawnedEnemyGraphics = new Map<string, EntityVisual>();
+            const enemyHealthBars = new Map<string, Graphics>();
+            const impactEffects = new Map<
+                string,
+                { graphic: Graphics; remaining: number }
+            >();
             const spawnedEnemyContactCooldowns = new Map<string, number>();
             const spawnedShooterCooldowns = new Map<string, number>();
 
@@ -256,6 +262,39 @@ export function GameCanvas({
                 currentPlayer.transform.position.x,
                 currentPlayer.transform.position.y,
             );
+
+            const playerHealthBar = new Graphics();
+            let playerDamageFlashRemaining = 0;
+
+            function updateHealthBar(
+                graphic: Graphics,
+                health: number,
+                maxHealth: number,
+                width: number,
+            ) {
+                const ratio = Math.max(0, Math.min(1, health / maxHealth));
+                graphic.clear();
+                graphic
+                    .rect(-width / 2, 0, width, 4)
+                    .fill({ color: 0x17232d });
+                graphic
+                    .rect(-width / 2, 0, width * ratio, 4)
+                    .fill({
+                        color: ratio > 0.35 ? 0x45d483 : 0xe85d5d,
+                    });
+            }
+
+            function addImpactEffect(position: { x: number; y: number }) {
+                const graphic = new Graphics()
+                    .circle(0, 0, 18)
+                    .stroke({ color: 0xffd166, width: 4 });
+                graphic.position.set(position.x, position.y);
+                application.stage.addChild(graphic);
+                impactEffects.set(crypto.randomUUID(), {
+                    graphic,
+                    remaining: 0.25,
+                });
+            }
 
             const gameOverText = new Text({
                 text: "GAME OVER",
@@ -351,8 +390,16 @@ export function GameCanvas({
                 for (const graphic of spawnedEnemyGraphics.values()) {
                     graphic.destroy();
                 }
+                for (const graphic of enemyHealthBars.values()) {
+                    graphic.destroy();
+                }
+                for (const effect of impactEffects.values()) {
+                    effect.graphic.destroy();
+                }
 
                 spawnedEnemyGraphics.clear();
+                enemyHealthBars.clear();
+                impactEffects.clear();
                 spawnedEnemies = [];
 
                 publishGameState();
@@ -384,6 +431,7 @@ export function GameCanvas({
             publishGameState();
 
             application.stage.addChild(playerShip);
+            application.stage.addChild(playerHealthBar);
             application.stage.addChild(gameOverText);
 
             currentContainer.appendChild(application.canvas);
@@ -498,8 +546,21 @@ export function GameCanvas({
                     enemy.transform.position.y,
                 );
                 application.stage.addChild(graphic);
+                const healthBar = new Graphics();
+                updateHealthBar(
+                    healthBar,
+                    enemy.health,
+                    enemy.maxHealth,
+                    34,
+                );
+                healthBar.position.set(
+                    enemy.transform.position.x,
+                    enemy.transform.position.y - 28,
+                );
+                application.stage.addChild(healthBar);
                 spawnedEnemies = [...spawnedEnemies, enemy];
                 spawnedEnemyGraphics.set(enemy.id, graphic);
+                enemyHealthBars.set(enemy.id, healthBar);
                 spawnedEnemyContactCooldowns.set(enemy.id, 0);
                 spawnedShooterCooldowns.set(
                     enemy.id,
@@ -637,6 +698,10 @@ export function GameCanvas({
                     return;
                 }
 
+                if (currentGameState.status !== "playing") {
+                    return;
+                }
+
                 switch (key) {
                     case "w":
                     case "arrowup":
@@ -693,6 +758,10 @@ export function GameCanvas({
                 ).detail;
 
                 if (!detail || typeof detail.pressed !== "boolean") {
+                    return;
+                }
+
+                if (currentGameState.status !== "playing") {
                     return;
                 }
 
@@ -999,6 +1068,16 @@ export function GameCanvas({
 
                 playerShip.rotation =
                     currentPlayer.transform.rotation;
+                playerHealthBar.position.set(
+                    currentPlayer.transform.position.x,
+                    currentPlayer.transform.position.y - 34,
+                );
+                updateHealthBar(
+                    playerHealthBar,
+                    currentPlayer.health,
+                    currentPlayer.maxHealth,
+                    48,
+                );
 
                 spawnCooldownRemaining = Math.max(
                     0,
@@ -1022,11 +1101,24 @@ export function GameCanvas({
                             currentPlayer,
                             deltaTimeSeconds,
                         );
+                        const isBlockedByIsland = islands.some((island) =>
+                            isEnemyCollidingWithIsland(
+                                nextEnemy,
+                                island,
+                                16,
+                            ),
+                        );
+                        const resolvedEnemy = isBlockedByIsland
+                            ? {
+                                  ...enemy,
+                                  velocity: { x: 0, y: 0 },
+                              }
+                            : nextEnemy;
                         const enemyGraphic =
                             spawnedEnemyGraphics.get(enemy.id);
                         const isColliding = areEntitiesColliding(
                             currentPlayer,
-                            nextEnemy,
+                            resolvedEnemy,
                             { playerRadius: 20, enemyRadius: 16 },
                         );
                         const contactCooldown = Math.max(
@@ -1051,6 +1143,8 @@ export function GameCanvas({
                                 matchConfig.chaser
                                     .contactDamage,
                             );
+                            playerDamageFlashRemaining = 0.2;
+                            addImpactEffect(resolvedEnemy.transform.position);
                             spawnedEnemyContactCooldowns.set(
                                 enemy.id,
                                 chaserContactCooldownSeconds,
@@ -1058,6 +1152,8 @@ export function GameCanvas({
 
                             enemyGraphic?.destroy();
                             spawnedEnemyGraphics.delete(enemy.id);
+                            enemyHealthBars.get(enemy.id)?.destroy();
+                            enemyHealthBars.delete(enemy.id);
                             spawnedEnemyContactCooldowns.delete(
                                 enemy.id,
                             );
@@ -1070,19 +1166,26 @@ export function GameCanvas({
 
                         if (enemyGraphic) {
                             enemyGraphic.position.set(
-                                nextEnemy.transform.position.x,
-                                nextEnemy.transform.position.y,
+                                resolvedEnemy.transform.position.x,
+                                resolvedEnemy.transform.position.y,
                             );
                             enemyGraphic.rotation =
                                 getVisualRotationForVelocity(
-                                    nextEnemy.velocity,
+                                    resolvedEnemy.velocity,
                                 );
+                        }
+                        const healthBar = enemyHealthBars.get(enemy.id);
+                        if (healthBar) {
+                            healthBar.position.set(
+                                resolvedEnemy.transform.position.x,
+                                resolvedEnemy.transform.position.y - 28,
+                            );
                         }
 
                         spawnedEnemies = spawnedEnemies.map(
                             (candidate) =>
                                 candidate.id === enemy.id
-                                    ? nextEnemy
+                                    ? resolvedEnemy
                                     : candidate,
                         );
                         continue;
@@ -1093,11 +1196,20 @@ export function GameCanvas({
                         currentPlayer,
                         deltaTimeSeconds,
                     );
+                    const isBlockedByIsland = islands.some((island) =>
+                        isEnemyCollidingWithIsland(nextEnemy, island, 15),
+                    );
+                    const resolvedEnemy = isBlockedByIsland
+                        ? {
+                              ...enemy,
+                              velocity: { x: 0, y: 0 },
+                          }
+                        : nextEnemy;
                     const enemyGraphic = spawnedEnemyGraphics.get(
                         enemy.id,
                     );
                     const distanceToPlayer = calculateDistance(
-                        nextEnemy.transform.position,
+                        resolvedEnemy.transform.position,
                         currentPlayer.transform.position,
                     );
                     const nextCooldown = Math.max(
@@ -1115,7 +1227,7 @@ export function GameCanvas({
                         distanceToPlayer <= shooterAttackRange &&
                         nextCooldown === 0
                     ) {
-                        fireShooterProjectileForEnemy(nextEnemy);
+                        fireShooterProjectileForEnemy(resolvedEnemy);
                         spawnedShooterCooldowns.set(
                             enemy.id,
                             shooterConfig.attackCooldownSeconds,
@@ -1124,20 +1236,27 @@ export function GameCanvas({
 
                     if (enemyGraphic) {
                         enemyGraphic.position.set(
-                            nextEnemy.transform.position.x,
-                            nextEnemy.transform.position.y,
+                            resolvedEnemy.transform.position.x,
+                            resolvedEnemy.transform.position.y,
                         );
                         enemyGraphic.rotation =
                             getVisualRotationForVelocity(
-                                nextEnemy.velocity,
-                                nextEnemy.transform.rotation,
+                                resolvedEnemy.velocity,
+                                resolvedEnemy.transform.rotation,
                             );
+                    }
+                    const healthBar = enemyHealthBars.get(enemy.id);
+                    if (healthBar) {
+                        healthBar.position.set(
+                            resolvedEnemy.transform.position.x,
+                            resolvedEnemy.transform.position.y - 28,
+                        );
                     }
 
                     spawnedEnemies = spawnedEnemies.map(
                         (candidate) =>
                             candidate.id === enemy.id
-                                ? nextEnemy
+                                ? resolvedEnemy
                                 : candidate,
                     );
                 }
@@ -1201,6 +1320,8 @@ export function GameCanvas({
                             );
                             graphic?.destroy();
                             spawnedEnemyGraphics.delete(enemy.id);
+                            enemyHealthBars.get(enemy.id)?.destroy();
+                            enemyHealthBars.delete(enemy.id);
                             spawnedEnemyContactCooldowns.delete(
                                 enemy.id,
                             );
@@ -1212,6 +1333,17 @@ export function GameCanvas({
                             currentScore = addEnemyDefeatScore(
                                 currentScore,
                             );
+                            addImpactEffect(enemy.transform.position);
+                        } else {
+                            const healthBar = enemyHealthBars.get(enemy.id);
+                            if (healthBar) {
+                                updateHealthBar(
+                                    healthBar,
+                                    damagedEnemy.health,
+                                    damagedEnemy.maxHealth,
+                                    34,
+                                );
+                            }
                         }
 
                         break;
@@ -1233,6 +1365,7 @@ export function GameCanvas({
                         currentPlayer,
                         projectile.damage,
                     );
+                    playerDamageFlashRemaining = 0.2;
 
                     console.log(
                         `Player hit by enemy projectile. Health: ${currentPlayer.health}`,
@@ -1282,6 +1415,28 @@ export function GameCanvas({
                     graphic.rotation = getVisualRotationForVelocity(
                         projectile.velocity,
                     );
+                }
+
+                playerDamageFlashRemaining = Math.max(
+                    0,
+                    playerDamageFlashRemaining - deltaTimeSeconds,
+                );
+                playerShip.alpha =
+                    playerDamageFlashRemaining > 0 ? 0.5 : 1;
+
+                for (const [effectId, effect] of impactEffects) {
+                    effect.remaining -= deltaTimeSeconds;
+                    effect.graphic.alpha = Math.max(
+                        0,
+                        effect.remaining / 0.25,
+                    );
+                    effect.graphic.scale.set(
+                        1 + (0.25 - effect.remaining) * 2,
+                    );
+                    if (effect.remaining <= 0) {
+                        effect.graphic.destroy();
+                        impactEffects.delete(effectId);
+                    }
                 }
             });
         }

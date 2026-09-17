@@ -188,6 +188,9 @@ Tests should use controlled time and deterministic scenarios whenever possible.
 - Ranking and Match History use Axios clients, TanStack Query hooks, and MSW browser handlers. Match registration is deduplicated by `matchId` in the mock handler.
 - Touch controls dispatch the same logical actions used by the keyboard path through Pointer Events.
 - The current asset integration is intentionally limited: the water tile is loaded through PixiJS with a fallback, while gameplay entities remain `Graphics` until a broader texture migration is safe.
+- The current asset integration uses cached PNG textures for ships, projectiles, islands, and water, with per-asset `Graphics` fallbacks. Sprite rotation is a rendering correction; simulation vectors remain unchanged.
+- Enemy movement validates the next position against island geometry before committing it, while player and projectile collision rules remain in the existing pure collision system.
+- The HUD includes player/enemy health bars, a pause overlay, and short impact feedback; full audio and particle systems remain outside the MVP.
 
 ## 10. Current MVP Implementation Notes
 

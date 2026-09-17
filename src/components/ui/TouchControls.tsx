@@ -52,7 +52,7 @@ function TouchButton({ action, label, hold = true }: TouchButtonProps) {
 
 export function TouchControls() {
     return (
-        <div className="touch-controls" aria-label="Touch controls">
+        <div className="touch-controls" role="group" aria-label="Touch controls">
             <TouchButton action="left" label="Turn Left" />
             <TouchButton action="forward" label="Forward" />
             <TouchButton action="right" label="Turn Right" />

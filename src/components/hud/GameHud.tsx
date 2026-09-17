@@ -56,6 +56,13 @@ export function GameHud() {
                     {gameState.status === 'paused' ? 'Resume' : 'Pause'}
                 </button>
             )}
+
+            {gameState.status === 'paused' && (
+                <div className="game-hud__pause-overlay" role="status">
+                    <strong>PAUSED</strong>
+                    <span>Press Resume to continue</span>
+                </div>
+            )}
         </section>
     );
 }
