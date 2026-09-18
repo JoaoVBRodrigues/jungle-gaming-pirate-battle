@@ -75,11 +75,24 @@ select {
   display: none;
 }
 
-.game-canvas-container {
-  position: relative;
+.game-playfield {
   flex: 1 1 auto;
-  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(150px, 220px) minmax(0, 800px) minmax(150px, 220px);
+  gap: 1rem;
+  align-items: stretch;
+  width: min(100%, 1280px);
   min-height: 0;
+  margin: 0 auto;
+  padding: 4.75rem 1rem 1rem;
+}
+
+.game-canvas-container {
+  grid-column: 2;
+  position: relative;
+  min-height: 0;
+  height: 100%;
+  width: 100%;
   overflow: hidden;
   background: #123047;
 }
@@ -118,12 +131,22 @@ select {
   }
 
   .app-shell--game .game-hud {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 0.4rem;
     padding: 0.5rem;
   }
 
   .app-shell--game .game-hud__item:nth-child(4) {
     display: none;
+  }
+
+  .game-playfield {
+    display: block;
+    width: 100%;
+    height: 100%;
+    padding: 4.5rem 0.35rem 0.35rem;
+  }
+
+  .game-canvas-container {
+    height: 100%;
   }
 }

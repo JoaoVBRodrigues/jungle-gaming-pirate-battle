@@ -5,7 +5,8 @@ type TouchAction =
     | 'left'
     | 'right'
     | 'fire'
-    | 'lateral';
+    | 'fire-left'
+    | 'fire-right';
 
 function dispatchTouchAction(action: TouchAction, pressed: boolean) {
     window.dispatchEvent(
@@ -57,7 +58,8 @@ export function TouchControls() {
             <TouchButton action="forward" label="Forward" />
             <TouchButton action="right" label="Turn Right" />
             <TouchButton action="fire" label="Fire" hold={false} />
-            <TouchButton action="lateral" label="Side Fire" hold={false} />
+            <TouchButton action="fire-left" label="Left Fire" hold={false} />
+            <TouchButton action="fire-right" label="Right Fire" hold={false} />
         </div>
     );
 }

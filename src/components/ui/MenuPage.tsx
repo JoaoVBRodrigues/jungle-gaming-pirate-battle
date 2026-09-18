@@ -8,6 +8,13 @@ import {
     saveGameOptions,
 } from '../../services/storage/gameOptions';
 import type { AppScreen } from '../../types/menu';
+import {
+    getNetworkScenario,
+    NETWORK_SCENARIO_STORAGE_KEY,
+    resetMockData,
+    setNetworkScenario,
+    type NetworkScenario,
+} from '../../mocks/handlers';
 import './Menu.css';
 
 interface MenuPageProps {
@@ -27,6 +34,7 @@ export function MenuPage({ screen, onBack }: MenuPageProps) {
             <p className="menu-screen__eyebrow">Pirate Battle</p>
             <h2 id="menu-page-title">{pageTitles[screen]}</h2>
             {screen === 'options' && <OptionsContent />}
+            {(screen === 'ranking' || screen === 'history') && <NetworkScenarioControls />}
             {screen === 'ranking' && <RankingContent />}
             {screen === 'history' && <HistoryContent />}
             <button className="menu-screen__back" type="button" onClick={onBack}>
@@ -87,8 +95,52 @@ function OptionsContent() {
     );
 }
 
+const networkScenarios: readonly NetworkScenario[] = [
+    'success', 'empty', 'paginated', 'slow', 'out-of-order', 'timeout', 'server-error', 'connection-error',
+];
+
+function NetworkScenarioControls() {
+    const [scenario, setScenario] = useState<NetworkScenario>(getNetworkScenario);
+
+    function changeScenario(value: NetworkScenario) {
+        setScenario(value);
+        setNetworkScenario(value);
+        window.location.reload();
+    }
+
+    function resetScenario() {
+        resetMockData();
+        window.localStorage.removeItem(NETWORK_SCENARIO_STORAGE_KEY);
+        setScenario('success');
+        window.location.reload();
+    }
+
+    return (
+        <div className="network-scenario-controls" aria-label="Network scenario controls">
+            <label>
+                Network scenario
+                <select value={scenario} onChange={(event) => changeScenario(event.target.value as NetworkScenario)}>
+                    {networkScenarios.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+            </label>
+            <button type="button" onClick={resetScenario}>Reset Mock Data</button>
+        </div>
+    );
+}
+
+function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
+    return (
+        <nav className="menu-pagination" aria-label="Pagination">
+            <button type="button" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</button>
+            <span>Page {page} of {totalPages}</span>
+            <button type="button" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>Next</button>
+        </nav>
+    );
+}
+
 function RankingContent() {
-    const query = useRankingQuery(true);
+    const [page, setPage] = useState(1);
+    const query = useRankingQuery(true, page);
 
     if (query.isLoading) {
         return <p role="status">Loading ranking...</p>;
@@ -122,12 +174,14 @@ function RankingContent() {
                     ))}
                 </tbody>
             </table>
+            <Pagination page={query.data.page} totalPages={query.data.totalPages} onChange={setPage} />
         </div>
     );
 }
 
 function HistoryContent() {
-    const query = useMatchHistoryQuery(true);
+    const [page, setPage] = useState(1);
+    const query = useMatchHistoryQuery(true, page);
 
     if (query.isLoading) {
         return <p role="status">Loading match history...</p>;
@@ -163,6 +217,7 @@ function HistoryContent() {
                     ))}
                 </tbody>
             </table>
+            <Pagination page={query.data.page} totalPages={query.data.totalPages} onChange={setPage} />
         </div>
     );
 }
