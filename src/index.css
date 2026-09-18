@@ -15,16 +15,23 @@ body {
   width: 100%;
   min-width: 320px;
   min-height: 100%;
+  height: 100%;
 }
 
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  min-height: 100dvh;
   overflow-x: hidden;
+  overscroll-behavior: none;
   background:
     radial-gradient(circle at 50% -20%, #164363 0%, transparent 48%),
     #07182b;
+}
+
+body:has(.app-shell--game) {
+  overflow: hidden;
 }
 
 button,
@@ -34,7 +41,8 @@ select {
 }
 
 #root {
-  min-height: 100vh;
+  min-height: 100%;
+  height: 100%;
 }
 
 .app-shell {
@@ -65,9 +73,11 @@ select {
   display: flex;
   flex-direction: column;
   width: 100%;
+  height: 100vh;
   height: 100dvh;
+  min-height: 100vh;
   min-height: 100dvh;
-  padding-inline: 0;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   overflow: hidden;
 }
 
@@ -80,18 +90,19 @@ select {
   display: grid;
   grid-template-columns: minmax(150px, 220px) minmax(0, 800px) minmax(150px, 220px);
   gap: 1rem;
-  align-items: stretch;
+  align-items: center;
   width: min(100%, 1280px);
   min-height: 0;
   margin: 0 auto;
-  padding: 4.75rem 1rem 1rem;
+  padding: 1rem;
 }
 
 .game-canvas-container {
   grid-column: 2;
   position: relative;
+  aspect-ratio: 4 / 3;
   min-height: 0;
-  height: 100%;
+  max-height: 100%;
   width: 100%;
   overflow: hidden;
   background: #123047;
@@ -104,26 +115,26 @@ select {
 }
 
 .app-shell--game .game-hud {
-  position: absolute;
+  position: relative;
   z-index: 4;
-  top: 0;
-  left: 0;
   width: 100%;
   max-width: none;
   border-width: 0 0 1px;
 }
 
 .app-shell--game .touch-controls {
-  position: absolute;
+  position: relative;
+  flex: 0 0 auto;
   z-index: 5;
-  right: 0;
-  bottom: 1rem;
-  left: 0;
 }
 
 @media (max-width: 700px) {
   .app-shell {
     padding: 1.25rem 0.75rem 2rem;
+  }
+
+  .app-shell--game {
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
   }
 
   .app-header {
@@ -135,18 +146,34 @@ select {
     padding: 0.5rem;
   }
 
-  .app-shell--game .game-hud__item:nth-child(4) {
-    display: none;
-  }
-
   .game-playfield {
-    display: block;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 100%;
-    height: 100%;
-    padding: 4.5rem 0.35rem 0.35rem;
+    padding: 0.35rem;
   }
 
   .game-canvas-container {
-    height: 100%;
+    flex: 0 1 auto;
+    width: min(100%, calc((100dvh - 9rem) * 4 / 3));
+    height: auto;
+    max-height: 100%;
+  }
+}
+
+@media (max-width: 900px) {
+  .game-playfield {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .game-playfield .game-tutorial {
+    display: none;
+  }
+
+  .game-canvas-container {
+    grid-column: 1;
+    justify-self: center;
+    width: min(100%, 800px);
   }
 }

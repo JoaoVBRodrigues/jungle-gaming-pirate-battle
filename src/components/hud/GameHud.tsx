@@ -30,6 +30,10 @@ const hudAssets = {
         '../../../assets/png/default/ui/hud/health_fill_red.png',
         import.meta.url,
     ).href,
+    pause: new URL(
+        '../../../assets/png/retina/ui/controls/icon_pause.png',
+        import.meta.url,
+    ).href,
 } as const;
 
 export function GameHud() {
@@ -109,6 +113,7 @@ export function GameHud() {
                     type="button"
                     onClick={handlePauseToggle}
                 >
+                    <img src={hudAssets.pause} alt="" aria-hidden="true" />
                     {gameState.status === 'paused' ? 'Resume' : 'Pause'}
                 </button>
             )}

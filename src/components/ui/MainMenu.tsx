@@ -1,6 +1,11 @@
 import type { AppScreen } from '../../types/menu';
 import './Menu.css';
 
+const titleAsset = new URL(
+    '../../../assets/png/retina/ui/menu/title_pirate_battle.png',
+    import.meta.url,
+).href;
+
 interface MainMenuProps {
     onNavigate: (screen: Exclude<AppScreen, 'game' | 'menu'>) => void;
     onPlay: () => void;
@@ -10,11 +15,16 @@ export function MainMenu({ onNavigate, onPlay }: MainMenuProps) {
     return (
         <section className="menu-dashboard" aria-labelledby="main-menu-title">
             <div className="menu-panel menu-panel--controls">
+                <img
+                    className="menu-title-asset"
+                    src={titleAsset}
+                    alt="Pirate Battle"
+                />
                 <div className="menu-panel__tabs">
-                    <button className="is-active" type="button" onClick={onPlay}>
+                    <button className="menu-button menu-button--primary is-active" type="button" onClick={onPlay}>
                         Play
                     </button>
-                    <button type="button" onClick={() => onNavigate('options')}>
+                    <button className="menu-button menu-button--secondary" type="button" onClick={() => onNavigate('options')}>
                         Options
                     </button>
                 </div>
@@ -26,7 +36,7 @@ export function MainMenu({ onNavigate, onPlay }: MainMenuProps) {
                     <div><dt>A / Left</dt><dd>Turn to port</dd></div>
                     <div><dt>D / Right</dt><dd>Turn to starboard</dd></div>
                     <div><dt>Space</dt><dd>Bow cannon</dd></div>
-                    <div><dt>Shift</dt><dd>Broadside volley</dd></div>
+                    <div><dt>Q / E</dt><dd>Left / right broadside</dd></div>
                     <div><dt>Escape</dt><dd>Pause or resume</dd></div>
                 </dl>
                 <p className="menu-panel__hint">
@@ -49,8 +59,8 @@ export function MainMenu({ onNavigate, onPlay }: MainMenuProps) {
                     Defeat enemy ships, protect your hull, and survive the full session.
                 </p>
                 <div className="menu-overview__actions">
-                    <button type="button" onClick={onPlay}>Start a new voyage</button>
-                    <button className="button-secondary" type="button" onClick={() => onNavigate('ranking')}>
+                    <button className="menu-button menu-button--primary" type="button" onClick={onPlay}>Start a new voyage</button>
+                    <button className="menu-button menu-button--secondary button-secondary" type="button" onClick={() => onNavigate('ranking')}>
                         View fleet standings
                     </button>
                 </div>

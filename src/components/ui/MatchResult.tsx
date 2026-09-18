@@ -6,6 +6,17 @@ import { useGameState } from '../../app/hooks/useGameState';
 import { formatMatchDuration } from '../../game/simulation/matchDuration';
 import './MatchResult.css';
 
+const resultAssets = {
+    restart: new URL(
+        '../../../assets/png/retina/ui/controls/icon_restart.png',
+        import.meta.url,
+    ).href,
+    home: new URL(
+        '../../../assets/png/retina/ui/controls/icon_home.png',
+        import.meta.url,
+    ).href,
+} as const;
+
 interface MatchResultProps {
     onPlayAgain: () => void;
     onBackToMenu: () => void;
@@ -116,17 +127,19 @@ export function MatchResult({
                 )}
 
                 <button
-                    className="match-result__button"
+                    className="match-result__button match-result__button--primary"
                     type="button"
                     onClick={onPlayAgain}
                 >
+                    <img src={resultAssets.restart} alt="" aria-hidden="true" />
                     Play Again
                 </button>
                 <button
-                    className="match-result__secondary-button"
+                    className="match-result__secondary-button match-result__button--secondary"
                     type="button"
                     onClick={onBackToMenu}
                 >
+                    <img src={resultAssets.home} alt="" aria-hidden="true" />
                     Back to Menu
                 </button>
             </div>

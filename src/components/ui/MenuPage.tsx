@@ -37,7 +37,8 @@ export function MenuPage({ screen, onBack }: MenuPageProps) {
             {(screen === 'ranking' || screen === 'history') && <NetworkScenarioControls />}
             {screen === 'ranking' && <RankingContent />}
             {screen === 'history' && <HistoryContent />}
-            <button className="menu-screen__back" type="button" onClick={onBack}>
+            <button className="menu-button menu-button--secondary menu-screen__back" type="button" onClick={onBack}>
+                <img src={new URL('../../../assets/png/retina/ui/controls/icon_home.png', import.meta.url).href} alt="" aria-hidden="true" />
                 Back
             </button>
         </section>
@@ -89,7 +90,7 @@ function OptionsContent() {
                     }}
                 />
             </label>
-            <button type="submit">Save Options</button>
+            <button className="menu-button menu-button--primary" type="submit">Save Options</button>
             {isSaved && <p role="status">Options saved.</p>}
         </form>
     );
@@ -123,7 +124,7 @@ function NetworkScenarioControls() {
                     {networkScenarios.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
             </label>
-            <button type="button" onClick={resetScenario}>Reset Mock Data</button>
+            <button className="menu-button menu-button--secondary" type="button" onClick={resetScenario}>Reset Mock Data</button>
         </div>
     );
 }
@@ -131,9 +132,9 @@ function NetworkScenarioControls() {
 function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) {
     return (
         <nav className="menu-pagination" aria-label="Pagination">
-            <button type="button" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</button>
+            <button className="menu-button menu-button--secondary" type="button" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</button>
             <span>Page {page} of {totalPages}</span>
-            <button type="button" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>Next</button>
+            <button className="menu-button menu-button--secondary" type="button" disabled={page >= totalPages} onClick={() => onChange(page + 1)}>Next</button>
         </nav>
     );
 }

@@ -2,8 +2,8 @@
     display: grid;
     grid-template-columns: minmax(15rem, 1.6fr) minmax(8rem, 1fr) repeat(3, minmax(5rem, 0.7fr)) auto;
     gap: 0.75rem;
-    width: min(100%, 800px);
-    padding: 0.75rem;
+    width: 100%;
+    padding: 0.6rem clamp(0.5rem, 2vw, 0.75rem);
     color: #f5f5f5;
     background: #1b2a36;
     border: 1px solid #496273;
@@ -81,8 +81,9 @@
 
 @media (max-width: 520px) {
     .game-hud {
-        grid-template-columns: minmax(0, 1fr) repeat(3, minmax(3.5rem, 0.7fr)) auto;
+        grid-template-columns: minmax(0, 1.35fr) repeat(3, minmax(2.8rem, 0.7fr)) auto;
         gap: 0.45rem;
+        padding: 0.35rem 0.5rem;
     }
 
     .game-hud__tutorial {
@@ -97,17 +98,39 @@
         display: none;
     }
 
+    .game-hud__tutorial .game-hud__label {
+        font-size: 0.65rem;
+    }
+
     .game-hud__health {
-        min-width: 5.5rem;
+        min-width: 0;
     }
 
     .game-hud__health-meter {
         width: 6.5rem;
         height: 1.05rem;
     }
+
+    .game-hud__pause-button {
+        min-height: 2rem;
+        padding: 0.3rem 0.55rem;
+        font-size: 0.78rem;
+    }
+
+    .game-hud__label {
+        font-size: 0.65rem;
+    }
+
+    .game-hud strong {
+        font-size: 0.9rem;
+    }
 }
 
 .game-hud__pause-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
     min-height: 2.25rem;
     padding: 0.4rem 0.75rem;
     color: #101820;
@@ -116,6 +139,12 @@
     border: 0;
     cursor: pointer;
 }
+
+.game-hud__pause-button img {
+        width: 1.25rem;
+        height: 1.25rem;
+        object-fit: contain;
+    }
 
 .game-hud__pause-button:hover {
     background: #ffd968;
@@ -129,7 +158,10 @@
 .game-hud__pause-overlay {
     position: fixed;
     z-index: 6;
-    inset: 0;
+    top: env(safe-area-inset-top);
+    right: 0;
+    bottom: env(safe-area-inset-bottom);
+    left: 0;
     display: grid;
     place-content: center;
     gap: 0.5rem;

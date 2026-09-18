@@ -8,6 +8,33 @@ type TouchAction =
     | 'fire-left'
     | 'fire-right';
 
+const controlIcons = {
+    forward: new URL(
+        '../../../assets/png/retina/ui/controls/icon_forward.png',
+        import.meta.url,
+    ).href,
+    left: new URL(
+        '../../../assets/png/retina/ui/controls/icon_turn_left.png',
+        import.meta.url,
+    ).href,
+    right: new URL(
+        '../../../assets/png/retina/ui/controls/icon_turn_right.png',
+        import.meta.url,
+    ).href,
+    fire: new URL(
+        '../../../assets/png/retina/ui/controls/icon_fire_front.png',
+        import.meta.url,
+    ).href,
+    fireLeft: new URL(
+        '../../../assets/png/retina/ui/controls/icon_fire_left.png',
+        import.meta.url,
+    ).href,
+    fireRight: new URL(
+        '../../../assets/png/retina/ui/controls/icon_fire_right.png',
+        import.meta.url,
+    ).href,
+} as const;
+
 function dispatchTouchAction(action: TouchAction, pressed: boolean) {
     window.dispatchEvent(
         new CustomEvent('game:touch-input', {
@@ -19,14 +46,16 @@ function dispatchTouchAction(action: TouchAction, pressed: boolean) {
 interface TouchButtonProps {
     action: TouchAction;
     label: string;
+    icon: string;
     hold?: boolean;
 }
 
-function TouchButton({ action, label, hold = true }: TouchButtonProps) {
+function TouchButton({ action, label, icon, hold = true }: TouchButtonProps) {
     return (
         <button
             className="touch-controls__button"
             type="button"
+            aria-label={label}
             onPointerDown={(event) => {
                 event.preventDefault();
                 event.currentTarget.setPointerCapture(event.pointerId);
@@ -46,7 +75,8 @@ function TouchButton({ action, label, hold = true }: TouchButtonProps) {
                 }
             }}
         >
-            {label}
+            <img src={icon} alt="" aria-hidden="true" />
+            <span className="touch-controls__label">{label}</span>
         </button>
     );
 }
@@ -54,12 +84,12 @@ function TouchButton({ action, label, hold = true }: TouchButtonProps) {
 export function TouchControls() {
     return (
         <div className="touch-controls" role="group" aria-label="Touch controls">
-            <TouchButton action="left" label="Turn Left" />
-            <TouchButton action="forward" label="Forward" />
-            <TouchButton action="right" label="Turn Right" />
-            <TouchButton action="fire" label="Fire" hold={false} />
-            <TouchButton action="fire-left" label="Left Fire" hold={false} />
-            <TouchButton action="fire-right" label="Right Fire" hold={false} />
+            <TouchButton action="left" label="Turn Left" icon={controlIcons.left} />
+            <TouchButton action="forward" label="Forward" icon={controlIcons.forward} />
+            <TouchButton action="right" label="Turn Right" icon={controlIcons.right} />
+            <TouchButton action="fire" label="Fire" icon={controlIcons.fire} hold={false} />
+            <TouchButton action="fire-left" label="Left Fire" icon={controlIcons.fireLeft} hold={false} />
+            <TouchButton action="fire-right" label="Right Fire" icon={controlIcons.fireRight} hold={false} />
         </div>
     );
 }

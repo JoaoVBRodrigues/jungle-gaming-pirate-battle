@@ -52,17 +52,32 @@
 }
 
 .match-result__button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
     width: 100%;
     padding: 0.7rem 1rem;
     color: #101820;
     font-weight: 700;
-    background: #f4c542;
-    border: 0;
+    background-color: transparent;
+    border: 12px solid transparent;
+    border-image: url('../../../assets/png/retina/ui/menu/button_primary_normal.png') 48 fill / 12px / 0 stretch;
     cursor: pointer;
 }
 
+    .match-result__button img {
+        width: 1.35rem;
+        height: 1.35rem;
+        object-fit: contain;
+    }
+
 .match-result__button:hover {
-    background: #ffd968;
+    border-image-source: url('../../../assets/png/retina/ui/menu/button_primary_hover.png');
+}
+
+.match-result__button:active {
+    border-image-source: url('../../../assets/png/retina/ui/menu/button_primary_pressed.png');
 }
 
 .match-result__button:focus-visible {
@@ -71,17 +86,32 @@
 }
 
 .match-result__secondary-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
     width: 100%;
     margin-top: 0.75rem;
     padding: 0.7rem 1rem;
     color: #d7e3e8;
-    background: transparent;
-    border: 1px solid #7894a3;
+    background-color: transparent;
+    border: 12px solid transparent;
+    border-image: url('../../../assets/png/retina/ui/menu/button_secondary_normal.png') 48 fill / 12px / 0 stretch;
     cursor: pointer;
 }
 
+    .match-result__secondary-button img {
+        width: 1.35rem;
+        height: 1.35rem;
+        object-fit: contain;
+    }
+
 .match-result__secondary-button:hover {
-    background: #294252;
+    border-image-source: url('../../../assets/png/retina/ui/menu/button_primary_hover.png');
+}
+
+.match-result__secondary-button:active {
+    border-image-source: url('../../../assets/png/retina/ui/menu/button_secondary_pressed.png');
 }
 
 .match-result__secondary-button:focus-visible {
