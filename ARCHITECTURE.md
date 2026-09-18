@@ -1,215 +1,38 @@
+# Pirate Battle Architecture
 
-# Pirate Battle — Architecture
+## Responsibilities
 
-## 1. Project Overview
+- React owns menus, Options, ranking/history queries, HUD, result state, touch controls, and accessible semantic summaries.
+- PixiJS owns the water arena, islands, ships, projectiles, health indicators, impact effects, and cached textures.
+- Pure game systems under `src/game/systems` implement movement, steering, projectile creation/movement, damage, collisions, spawning, score, and timing.
+- `gameStateStore.ts` exposes only low-frequency HUD state through `useSyncExternalStore`; React does not render every simulation frame.
 
-Pirate Battle is a single-player 2D naval shooter developed with React, TypeScript, and PixiJS.
+## Match Lifecycle
 
-The application is divided into two main responsibilities:
+`App` creates a fresh configuration snapshot and `matchId` for Play and Play Again. `GameCanvas` initializes Pixi, loads cached textures, registers keyboard/touch/visibility listeners, and attaches one ticker callback. The callback advances active time, movement, cooldowns, spawns, collisions, damage, score, and visuals. Pause clears movement input and returns before advancing time. Finish is idempotent, removes the ticker/listeners, destroys dynamic visuals, and publishes the final HUD state. React unmount then destroys the Pixi application and audio resources.
 
-- React manages menus, configuration screens, HUD panels, dialogs, and remote data.
-- PixiJS renders the game arena, entities, projectiles, and visual effects.
+The ticker caps a single simulation step at 100 ms to avoid teleporting after a long browser frame. Enemy steering tests direct and angular alternatives against island circles and retains the selected side while blocked. Enemy rotation uses the configured rotation speed.
 
-The gameplay simulation remains independent from React rendering.
+## Assets and Rendering
 
-## 2. Main Architectural Areas
+`gameAssets.ts` loads each PNG once through a cached promise. Missing assets fall back to Graphics. The explosion texture is reused for short-lived impact sprites. Player and enemy health bars use frame/fill textures, clamp `health / maxHealth` to 0-1, and destroy their containers with the entity. The Pixi canvas has an accessible label; HUD values are exposed semantically.
 
-### React Application
+## Network Contracts
 
-Responsible for:
+Axios calls `/api/ranking` and `/api/matches`. TanStack Query keys include the requested page, retries failed reads once, and invalidates ranking/history after a confirmed registration. MSW provides fixtures, deterministic page slicing, scenario-controlled latency/errors, local persistence, deterministic score/match-id ordering, and idempotent POST behavior.
 
-- Main menu
-- Options screen
-- Game screen
-- Result screen
-- Ranking screen
-- Match history screen
-- Accessibility and responsive interface
-- Displaying game state summaries
+Network scenarios are selected with `pirate-battle.network-scenario` and exposed in the Ranking/History UI: success, empty, paginated, slow, out-of-order, timeout, server-error, and connection-error.
 
-### Game Simulation
+## Pending Registrations
 
-Responsible for:
+A completed match payload is stored in `pendingMatches.ts` before the POST. The payload is removed only after a successful response. `useRegisterMatch` retries all persisted payloads on mount, so a refresh from the menu can recover an interrupted submission. `MatchResult` also exposes Retry Save. The mock uses `matchId` as the idempotency key, preventing duplicate history/ranking entries.
 
-- Player movement and rotation
-- Enemy behavior
-- Projectile movement
-- Collision detection
-- Damage and destruction
-- Enemy spawning
-- Score calculation
-- Match timing
-- Pause and resume rules
+## Input
 
-The simulation must not depend on React component rendering.
+Keyboard listeners are mounted only with the gameplay component. `Space` fires forward; `Q` and `E` fire left/right three-projectile broadsides. Touch buttons dispatch the same logical `game:touch-input` actions. Blur and hidden-tab events pause the game and clear held movement.
 
-### PixiJS Rendering
+## Testing and Profiling
 
-Responsible for:
+Vitest covers pure systems and pending storage. Playwright covers navigation, Options persistence, paginated/scenario-driven menu states, accessible game surfaces, and mobile controls. `npm run profile` measures 300 Chromium animation frames, frame-time p95, average FPS, and available JS heap data against the production preview.
 
-- Arena rendering
-- Ships
-- Islands
-- Projectiles
-- Visual effects
-- Health indicators
-
-Rendering reads the simulation state but does not define gameplay rules.
-
-### Network Services
-
-Responsible for:
-
-- Ranking requests
-- Match history requests
-- Match registration
-- Error handling
-- Retry and pending registration recovery
-
-Axios will be used for HTTP communication.
-
-TanStack Query will manage remote queries, caching, invalidation, and mutations.
-
-### Local Storage
-
-Responsible for:
-
-- Persisting gameplay options
-- Persisting the last completed match
-- Persisting confirmed match records
-- Persisting pending match registrations
-
-## 3. Configuration
-
-Gameplay parameters will be centralized in a typed configuration.
-
-Each match will receive a configuration snapshot when it starts.
-
-Changes made in the Options screen will affect future matches and will not modify an active match.
-
-## 4. Simulation
-
-The simulation will be time-based rather than frame-dependent.
-
-Movement, cooldowns, spawning, and damage calculations must use elapsed time.
-
-The simulation must pause when:
-
-- The player manually pauses the game.
-- The browser tab becomes hidden.
-- The game loses the required focus.
-
-Resuming requires an explicit player action.
-
-The simulation must not accumulate movement or firing actions while paused.
-
-## 5. React and PixiJS Integration
-
-React will control the lifecycle of the game screen.
-
-The PixiJS application must:
-
-- Initialize correctly.
-- Load required assets before gameplay starts.
-- Register and remove listeners correctly.
-- Start and stop its ticker correctly.
-- Release resources when the game screen is exited.
-- Work correctly with React Strict Mode.
-
-React should not re-render every simulation frame.
-
-The game will expose only the state required by the interface, such as:
-
-- Remaining player health
-- Score
-- Remaining match time
-- Pause status
-- Match status
-
-## 6. Network and Persistence
-
-Ranking and match history will use mocked REST APIs through MSW.
-
-The mock layer will be shared between development and testing.
-
-The system must support:
-
-- Successful requests
-- Empty results
-- Pagination
-- Latency
-- Timeouts
-- HTTP errors
-- Pending registration recovery
-- Duplicate registration prevention
-
-A completed match must produce only one logical registration.
-
-## 7. Testing Strategy
-
-Playwright will be used for end-to-end tests.
-
-Tests will cover:
-
-- Navigation
-- Options persistence
-- Gameplay controls
-- Collisions
-- Combat
-- Enemy behavior
-- Pause and resume
-- Match completion
-- Ranking and history
-- Network failure recovery
-- Responsive layouts
-
-Tests should use controlled time and deterministic scenarios whenever possible.
-
-## 8. Initial Technical Decisions
-
-- React is responsible for the application interface.
-- PixiJS is responsible for game rendering.
-- Gameplay rules are separated from rendering.
-- TypeScript strict mode is enabled.
-- Gameplay configuration is centralized and typed.
-- Match configuration is captured as a snapshot at match start.
-- Network failures must not prevent the player from accessing the game.
-- Local persistence is used for options and pending registrations.
-
-## 9. Known Future Decisions
-
-## 10. Current MVP Implementation Notes
-
-- `App` owns a small screen union and mounts `GameCanvas` only during gameplay. Leaving the game runs the existing PixiJS cleanup.
-- `gameStateStore.ts` exposes only HUD values. `useSyncExternalStore` prevents React from owning the continuous simulation.
-- Enemy spawn validation lives in `src/game/systems/enemySpawn.ts`. Spawned enemies are tracked separately from the initial Chaser and Shooter to keep this MVP change incremental.
-- Pause uses the existing `GameStatus` transitions. Escape, the HUD button, window blur, and hidden-tab events clear movement input; the ticker returns before advancing simulation time or cooldowns.
-- Options are persisted defensively in `src/services/storage/gameOptions.ts`. `App` creates a configuration snapshot before mounting each match.
-- Ranking and Match History use Axios clients, TanStack Query hooks, and MSW browser handlers. Match registration is deduplicated by `matchId` in the mock handler.
-- Touch controls dispatch the same logical actions used by the keyboard path through Pointer Events.
-- The current asset integration is intentionally limited: the water tile is loaded through PixiJS with a fallback, while gameplay entities remain `Graphics` until a broader texture migration is safe.
-- The current asset integration uses cached PNG textures for ships, projectiles, islands, and water, with per-asset `Graphics` fallbacks. Sprite rotation is a rendering correction; simulation vectors remain unchanged.
-- Enemy movement validates the next position against island geometry before committing it, while player and projectile collision rules remain in the existing pure collision system.
-- The HUD includes player/enemy health bars, a pause overlay, and short impact feedback; full audio and particle systems remain outside the MVP.
-
-## 10. Current MVP Implementation Notes
-
-- `App` owns a small screen union and mounts `GameCanvas` only during gameplay. Leaving the game therefore runs the existing PixiJS cleanup.
-- `gameStateStore.ts` exposes only HUD values. `useSyncExternalStore` prevents React from owning the continuous simulation.
-- Enemy spawn validation lives in `src/game/systems/enemySpawn.ts`. Spawned enemies are tracked separately from the initial Chaser and Shooter to keep this MVP change incremental.
-- Pause is driven by the existing `GameStatus` transitions. Escape, the HUD button, window blur, and hidden-tab events clear movement input; the ticker returns before advancing simulation time or cooldowns.
-- Options are persisted defensively in `src/services/storage/gameOptions.ts`. `App` creates a configuration snapshot before mounting each match.
-- Ranking and Match History use Axios clients, TanStack Query hooks, and MSW browser handlers. Match registration is deduplicated by `matchId` in the mock handler.
-- Touch controls dispatch the same logical actions used by the keyboard path through Pointer Events.
-- The current asset integration is intentionally limited: the water tile is loaded through PixiJS with a fallback, while gameplay entities remain `Graphics` until a broader texture migration is safe.
-
-The following details will be defined during implementation:
-
-- Exact entity data structures
-- Collision detection strategy
-- Spatial optimization strategy
-- Rendering synchronization method
-- Touch control layout
-- Network scenario selection interface
-- Match ranking tie-breaker
-- Performance measurement methodology
+Known remaining evidence for a final external submission is the generated visual baseline set, a recorded profiling run on reference hardware, and the public Vercel URL.
