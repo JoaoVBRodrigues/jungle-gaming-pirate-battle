@@ -4,19 +4,19 @@ import {
     fetchRanking,
 } from '../../services/api/matchesApi';
 
-export function useRankingQuery(enabled: boolean) {
+export function useRankingQuery(enabled: boolean, page = 1) {
     return useQuery({
-        queryKey: ['ranking', 1],
-        queryFn: () => fetchRanking(1),
+        queryKey: ['ranking', page],
+        queryFn: () => fetchRanking(page),
         enabled,
         retry: 1,
     });
 }
 
-export function useMatchHistoryQuery(enabled: boolean) {
+export function useMatchHistoryQuery(enabled: boolean, page = 1) {
     return useQuery({
-        queryKey: ['match-history', 1],
-        queryFn: () => fetchMatchHistory(1),
+        queryKey: ['match-history', page],
+        queryFn: () => fetchMatchHistory(page),
         enabled,
         retry: 1,
     });

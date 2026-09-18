@@ -1,9 +1,11 @@
 import { useState } from 'react';
 import { GameHud } from './components/hud/GameHud';
+import { GameTutorial } from './components/hud/GameTutorial';
 import { MainMenu } from './components/ui/MainMenu';
 import { MenuPage } from './components/ui/MenuPage';
 import { MatchResult } from './components/ui/MatchResult';
 import { TouchControls } from './components/ui/TouchControls';
+import { useRegisterMatch } from './app/hooks/useRegisterMatch';
 import { resetGameState } from './game/simulation/gameStateStore';
 import { GameCanvas } from './game/rendering/GameCanvas';
 import {
@@ -14,6 +16,8 @@ import type { GameConfig } from './game/config/gameConfig';
 import type { AppScreen } from './types/menu';
 
 function App() {
+    useRegisterMatch();
+
     const [screen, setScreen] = useState<AppScreen>('menu');
     const [gameKey, setGameKey] = useState(0);
     const [matchId, setMatchId] = useState('');
@@ -59,7 +63,11 @@ function App() {
             {screen === 'game' && (
                 <>
                     <GameHud />
-                    <GameCanvas key={gameKey} config={gameConfig} />
+                    <div className="game-playfield">
+                        <GameTutorial side="left" />
+                        <GameCanvas key={gameKey} config={gameConfig} />
+                        <GameTutorial side="right" />
+                    </div>
                     <TouchControls />
                     <MatchResult
                         onPlayAgain={handlePlayAgain}

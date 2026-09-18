@@ -1,5 +1,6 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import type { GameConfig } from '../../game/config/gameConfig';
+import type { MatchRegistration } from '../../types/matches';
 import { useRegisterMatch } from '../../app/hooks/useRegisterMatch';
 import { useGameState } from '../../app/hooks/useGameState';
 import { formatMatchDuration } from '../../game/simulation/matchDuration';
@@ -20,8 +21,29 @@ export function MatchResult({
 }: MatchResultProps) {
     const gameState = useGameState();
     const registration = useRegisterMatch();
+    const { submitMatch } = registration;
     const submittedMatchId = useRef<string | null>(null);
     const duration = config.matchDurationSeconds - gameState.remainingTime;
+    const matchRegistration: MatchRegistration = useMemo(
+        () => ({
+            matchId,
+            playerId: 'player-1',
+            playerName: 'You',
+            date: new Date().toISOString(),
+            result: gameState.health <= 0 ? 'defeat' : 'timeout',
+            score: gameState.score,
+            duration: formatMatchDuration(duration),
+            config,
+            configKey: JSON.stringify(config),
+        }),
+        [
+            duration,
+            gameState.health,
+            gameState.score,
+            matchId,
+            config,
+        ],
+    );
 
     useEffect(() => {
         if (
@@ -32,13 +54,7 @@ export function MatchResult({
         }
 
         submittedMatchId.current = matchId;
-        registration.mutate({
-            matchId,
-            date: new Date().toISOString(),
-            result: gameState.health <= 0 ? 'Game Over' : 'Victory',
-            score: gameState.score,
-            duration: formatMatchDuration(duration),
-        });
+        submitMatch(matchRegistration);
     }, [
         config.matchDurationSeconds,
         duration,
@@ -47,7 +63,8 @@ export function MatchResult({
         gameState.score,
         gameState.status,
         matchId,
-        registration,
+        matchRegistration,
+        submitMatch,
     ]);
 
     if (gameState.status !== 'finished') {
@@ -87,6 +104,16 @@ export function MatchResult({
                     {registration.isSuccess && 'Result saved.'}
                     {registration.isError && 'Result could not be saved.'}
                 </p>
+
+                {registration.isError && (
+                    <button
+                        className="match-result__secondary-button"
+                        type="button"
+                        onClick={() => submitMatch(matchRegistration)}
+                    >
+                        Retry Save
+                    </button>
+                )}
 
                 <button
                     className="match-result__button"

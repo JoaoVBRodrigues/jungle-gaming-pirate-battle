@@ -1,15 +1,26 @@
+import type { GameConfig } from '../game/config/gameConfig';
+
+export type MatchEndReason = 'defeat' | 'timeout';
+
 export interface RankingEntry {
     readonly position: number;
+    readonly matchId: string;
+    readonly playerId: string;
     readonly playerName: string;
     readonly score: number;
+    readonly configKey: string;
 }
 
 export interface MatchHistoryEntry {
     readonly matchId: string;
+    readonly playerId: string;
+    readonly playerName: string;
     readonly date: string;
-    readonly result: string;
+    readonly result: MatchEndReason;
     readonly score: number;
     readonly duration: string;
+    readonly config: GameConfig;
+    readonly configKey: string;
 }
 
 export interface PaginatedResponse<T> {
@@ -20,8 +31,12 @@ export interface PaginatedResponse<T> {
 
 export interface MatchRegistration {
     readonly matchId: string;
+    readonly playerId: string;
+    readonly playerName: string;
     readonly date: string;
-    readonly result: string;
+    readonly result: MatchEndReason;
     readonly score: number;
     readonly duration: string;
+    readonly config: GameConfig;
+    readonly configKey: string;
 }
