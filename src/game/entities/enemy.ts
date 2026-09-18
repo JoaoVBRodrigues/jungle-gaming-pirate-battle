@@ -8,6 +8,7 @@ export interface EnemyEntity {
   transform: Transform;
   velocity: Vector2;
   movementSpeed: number;
+  rotationSpeed?: number;
   health: number;
   maxHealth: number;
 }

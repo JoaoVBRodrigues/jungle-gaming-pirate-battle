@@ -9,6 +9,7 @@ import type { ArenaBounds } from "./arenaBounds";
 export interface EnemySpawnConfig {
     readonly health: number;
     readonly movementSpeed: number;
+    readonly rotationSpeed?: number;
 }
 
 export function createEnemyAtSpawn(
@@ -44,6 +45,7 @@ export function createEnemyAtSpawn(
             },
             velocity: { x: 0, y: 0 },
             movementSpeed: config.movementSpeed,
+            rotationSpeed: config.rotationSpeed ?? 0,
             health: config.health,
             maxHealth: config.health,
         };

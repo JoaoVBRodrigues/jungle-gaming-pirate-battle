@@ -3,6 +3,8 @@ type GameSound =
     | 'broadside'
     | 'enemyFire'
     | 'impact'
+    | 'collision'
+    | 'explosion'
     | 'gameOver'
     | 'gameComplete';
 
@@ -23,6 +25,14 @@ const soundUrls: Record<GameSound, string> = {
         '../../../assets/sounds/ship_wood_hit_1.wav',
         import.meta.url,
     ).href,
+    collision: new URL(
+        '../../../assets/sounds/ship_collision.wav',
+        import.meta.url,
+    ).href,
+    explosion: new URL(
+        '../../../assets/sounds/ship_explosion_1.wav',
+        import.meta.url,
+    ).href,
     gameOver: new URL(
         '../../../assets/sounds/game_over.wav',
         import.meta.url,
@@ -40,10 +50,26 @@ export function playGameSound(sound: GameSound): void {
         return;
     }
 
-    const audio = audioCache.get(sound) ?? new Audio(soundUrls[sound]);
-    audioCache.set(sound, audio);
-    audio.currentTime = 0;
-    void audio.play().catch(() => {
-        // Browsers may reject playback until the first user gesture.
-    });
+    try {
+        const audio =
+            audioCache.get(sound) ?? new Audio(soundUrls[sound]);
+        audioCache.set(sound, audio);
+        audio.currentTime = 0;
+        void audio.play().catch(() => {
+            // Browsers may reject playback until the first user gesture.
+        });
+    } catch {
+        // Audio failures must not interrupt gameplay.
+    }
+}
+
+export function stopGameSounds(): void {
+    for (const audio of audioCache.values()) {
+        try {
+            audio.pause();
+            audio.currentTime = 0;
+        } catch {
+            // Audio cleanup failures are intentionally ignored.
+        }
+    }
 }

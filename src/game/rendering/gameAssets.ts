@@ -6,6 +6,14 @@ export interface GameTextures {
     readonly cannonBall?: Texture;
     readonly island?: Texture;
     readonly water?: Texture;
+    readonly explosion?: Texture;
+    readonly healthFrame?: Texture;
+    readonly healthFillGreen?: Texture;
+    readonly healthFillAmber?: Texture;
+    readonly healthFillRed?: Texture;
+    readonly enemyHealthFrame?: Texture;
+    readonly enemyHealthFillGreen?: Texture;
+    readonly enemyHealthFillRed?: Texture;
 }
 
 const assetUrls = {
@@ -23,6 +31,38 @@ const assetUrls = {
     ).href,
     water: new URL(
         '../../../assets/png/default/tiles/tile_73.png',
+        import.meta.url,
+    ).href,
+    explosion: new URL(
+        '../../../assets/png/default/effects/explosion_1.png',
+        import.meta.url,
+    ).href,
+    healthFrame: new URL(
+        '../../../assets/png/default/ui/hud/health_frame.png',
+        import.meta.url,
+    ).href,
+    healthFillGreen: new URL(
+        '../../../assets/png/default/ui/hud/health_fill_green.png',
+        import.meta.url,
+    ).href,
+    healthFillAmber: new URL(
+        '../../../assets/png/default/ui/hud/health_fill_amber.png',
+        import.meta.url,
+    ).href,
+    healthFillRed: new URL(
+        '../../../assets/png/default/ui/hud/health_fill_red.png',
+        import.meta.url,
+    ).href,
+    enemyHealthFrame: new URL(
+        '../../../assets/png/default/ui/hud/enemy_health_frame.png',
+        import.meta.url,
+    ).href,
+    enemyHealthFillGreen: new URL(
+        '../../../assets/png/default/ui/hud/enemy_health_fill_green.png',
+        import.meta.url,
+    ).href,
+    enemyHealthFillRed: new URL(
+        '../../../assets/png/default/ui/hud/enemy_health_fill_red.png',
         import.meta.url,
     ).href,
 } as const;

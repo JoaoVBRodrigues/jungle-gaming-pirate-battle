@@ -1,10 +1,12 @@
 import { useEffect, useRef } from "react";
 import {
     Application,
+    Container,
     Graphics,
     Sprite,
     Text,
     TilingSprite,
+    type Ticker,
 } from "pixi.js";
 import { INITIAL_GAME_STATE } from "../simulation/gameState";
 import {
@@ -38,11 +40,17 @@ import {
     type ArenaBounds,
 } from "../systems/arenaBounds";
 import { createFrontalProjectile } from "../systems/playerShooting";
-import { createBothLateralProjectiles } from "../systems/playerLateralShooting";
+import {
+    createLateralProjectiles,
+    type LateralShootingSide,
+} from "../systems/playerLateralShooting";
 import { createEnemyProjectile } from "../systems/enemyShooting";
 import { updateProjectiles } from "../systems/projectileManager";
-import { updateEnemyPosition } from "../systems/enemyMovement";
 import { areEntitiesColliding } from "../systems/entityCollision";
+import {
+    calculateEnemySteering,
+    type SteeringSide,
+} from "../systems/enemySteering";
 import { applyDamageToPlayer } from "../systems/damageSystem";
 import { applyDamageToEnemy } from "../systems/enemyDamage";
 import { isPlayerDefeated } from "../systems/playerStatus";
@@ -51,15 +59,19 @@ import {
     createInitialScore,
 } from "../systems/scoreSystem";
 import {
-    isEnemyCollidingWithIsland,
     isPlayerCollidingWithIsland,
     isProjectileCollidingWithIsland,
 } from "../systems/islandCollision";
 import { createEnemyAtSpawn } from "../systems/enemySpawn";
 import type { EnemyType } from "../entities";
 import { loadGameTextures } from "./gameAssets";
+import {
+    playGameSound,
+    stopGameSounds,
+} from "./gameAudio";
 
-type EntityVisual = Graphics | Sprite;
+type EntityVisual = Container | Graphics | Sprite;
+type GameEndReason = "defeat" | "timeout" | "explicit";
 
 const LOGICAL_ARENA_WIDTH = 800;
 const LOGICAL_ARENA_HEIGHT = 600;
@@ -73,6 +85,20 @@ function getVisualRotationForVelocity(
     }
 
     return Math.atan2(velocity.y, velocity.x) + Math.PI / 2;
+}
+
+function rotateTowards(
+    currentRotation: number,
+    targetRotation: number,
+    maxDelta: number,
+): number {
+    const fullTurn = Math.PI * 2;
+    const difference =
+        ((targetRotation - currentRotation + Math.PI) % fullTurn + fullTurn) %
+            fullTurn -
+        Math.PI;
+
+    return currentRotation + Math.max(-maxDelta, Math.min(maxDelta, difference));
 }
 
 interface GameCanvasProps {
@@ -95,9 +121,21 @@ export function GameCanvas({
 
         let isMounted = true;
         let isInitialized = false;
+        let isApplicationDestroyed = false;
         let removeKeyboardListeners = () => undefined;
         let removePauseListeners = () => undefined;
         let removeResizeObserver = () => undefined;
+        let removeGameTicker = () => undefined;
+        let cleanupGameResources = () => undefined;
+
+        function destroyApplication() {
+            if (isApplicationDestroyed) {
+                return;
+            }
+
+            isApplicationDestroyed = true;
+            application.destroy(true);
+        }
 
         async function initializeGame() {
             await application.init({
@@ -109,20 +147,25 @@ export function GameCanvas({
             isInitialized = true;
 
             if (!isMounted) {
-                application.destroy(true);
+                destroyApplication();
                 return;
             }
 
             const currentContainer = canvasContainerRef.current;
 
             if (!currentContainer) {
-                application.destroy(true);
+                destroyApplication();
                 return;
             }
 
             const resizeTarget = currentContainer;
 
             const textures = await loadGameTextures();
+
+            if (!isMounted) {
+                destroyApplication();
+                return;
+            }
 
             if (textures.water) {
                 application.stage.addChild(
@@ -194,13 +237,17 @@ export function GameCanvas({
                 matchConfig.spawn.intervalSeconds;
             let spawnSequence = 0;
             let spawnedEnemies: EnemyEntity[] = [];
+            const enemySteeringSides = new Map<
+                string,
+                SteeringSide
+            >();
 
             const projectileGraphics = new Map<string, EntityVisual>();
             const spawnedEnemyGraphics = new Map<string, EntityVisual>();
-            const enemyHealthBars = new Map<string, Graphics>();
+            const enemyHealthBars = new Map<string, EntityVisual>();
             const impactEffects = new Map<
                 string,
-                { graphic: Graphics; remaining: number }
+                { graphic: EntityVisual; remaining: number }
             >();
             const spawnedEnemyContactCooldowns = new Map<string, number>();
             const spawnedShooterCooldowns = new Map<string, number>();
@@ -263,16 +310,40 @@ export function GameCanvas({
                 currentPlayer.transform.position.y,
             );
 
-            const playerHealthBar = new Graphics();
+            const playerHealthBar = createHealthBar(48);
             let playerDamageFlashRemaining = 0;
 
             function updateHealthBar(
-                graphic: Graphics,
+                graphic: EntityVisual,
                 health: number,
                 maxHealth: number,
                 width: number,
+                isEnemy = false,
             ) {
                 const ratio = Math.max(0, Math.min(1, health / maxHealth));
+
+                if (!(graphic instanceof Graphics)) {
+                    const fill = graphic.children[1];
+
+                    if (fill instanceof Sprite) {
+                                                const fillTexture = isEnemy
+                                                        ? ratio > 0.35
+                                                            ? textures.enemyHealthFillGreen
+                                                            : textures.enemyHealthFillRed
+                            : ratio > 0.6
+                              ? textures.healthFillGreen
+                              : ratio > 0.3
+                                ? textures.healthFillAmber
+                                : textures.healthFillRed;
+
+                        if (fillTexture) {
+                            fill.texture = fillTexture;
+                        }
+                        fill.width = width * 0.76 * ratio;
+                    }
+                    return;
+                }
+
                 graphic.clear();
                 graphic
                     .rect(-width / 2, 0, width, 4)
@@ -284,15 +355,73 @@ export function GameCanvas({
                     });
             }
 
-            function addImpactEffect(position: { x: number; y: number }) {
-                const graphic = new Graphics()
-                    .circle(0, 0, 18)
-                    .stroke({ color: 0xffd166, width: 4 });
+            function createHealthBar(
+                width: number,
+                isEnemy = false,
+            ): EntityVisual {
+                const frameTexture = isEnemy
+                    ? textures.enemyHealthFrame
+                    : textures.healthFrame;
+                const fillTexture = isEnemy
+                    ? textures.enemyHealthFillGreen
+                    : textures.healthFillGreen;
+
+                if (frameTexture && fillTexture) {
+                    const healthBar = new Container();
+                    const fill = new Sprite(fillTexture);
+                    const frame = new Sprite(frameTexture);
+                    frame.anchor.set(0.5);
+                    fill.anchor.set(0, 0.5);
+                    frame.width = width;
+                    frame.height = frameTexture.height *
+                        (width / frameTexture.width);
+                    fill.position.set(-width * 0.38, 0);
+                    fill.width = width * 0.76;
+                    fill.height = frame.height * 0.47;
+                    healthBar.addChild(frame, fill);
+                    return healthBar;
+                }
+
+                return new Graphics();
+            }
+
+            function addImpactEffect(
+                position: { x: number; y: number },
+                radius = 18,
+                color = 0xffd166,
+            ) {
+                const graphic = textures.explosion
+                    ? new Sprite(textures.explosion)
+                    : new Graphics()
+                          .circle(0, 0, radius)
+                          .stroke({ color, width: 4 });
+                if (graphic instanceof Sprite) {
+                    graphic.anchor.set(0.5);
+                    graphic.scale.set(
+                        (radius * 2) / graphic.texture.width,
+                    );
+                    graphic.tint = color;
+                }
                 graphic.position.set(position.x, position.y);
                 application.stage.addChild(graphic);
                 impactEffects.set(crypto.randomUUID(), {
                     graphic,
                     remaining: 0.25,
+                });
+            }
+
+            function addMuzzleFlash(
+                position: { x: number; y: number },
+                color: number,
+            ) {
+                const graphic = new Graphics()
+                    .circle(0, 0, 10)
+                    .fill({ color, alpha: 0.75 });
+                graphic.position.set(position.x, position.y);
+                application.stage.addChild(graphic);
+                impactEffects.set(crypto.randomUUID(), {
+                    graphic,
+                    remaining: 0.12,
                 });
             }
 
@@ -372,13 +501,17 @@ export function GameCanvas({
                 );
             }
 
-            function endCurrentGame() {
+            function endCurrentGame(reason: GameEndReason) {
                 if (isGameOver) {
                     return;
                 }
 
                 isGameOver = true;
                 currentGameState = finishGame(currentGameState);
+
+                removeGameTicker();
+                removeKeyboardListeners();
+                removePauseListeners();
 
                 movementInput.forward = false;
                 movementInput.backward = false;
@@ -387,20 +520,13 @@ export function GameCanvas({
 
                 gameOverText.visible = true;
 
-                for (const graphic of spawnedEnemyGraphics.values()) {
-                    graphic.destroy();
-                }
-                for (const graphic of enemyHealthBars.values()) {
-                    graphic.destroy();
-                }
-                for (const effect of impactEffects.values()) {
-                    effect.graphic.destroy();
+                if (reason === "defeat") {
+                    playGameSound("gameOver");
+                } else if (reason === "timeout") {
+                    playGameSound("gameComplete");
                 }
 
-                spawnedEnemyGraphics.clear();
-                enemyHealthBars.clear();
-                impactEffects.clear();
-                spawnedEnemies = [];
+                cleanupGameResources();
 
                 publishGameState();
             }
@@ -436,6 +562,11 @@ export function GameCanvas({
 
             currentContainer.appendChild(application.canvas);
             application.canvas.className = "game-canvas";
+            application.canvas.setAttribute("role", "img");
+            application.canvas.setAttribute(
+                "aria-label",
+                "Pirate Battle arena",
+            );
             resizeRenderer();
 
             const resizeObserver = new ResizeObserver(resizeRenderer);
@@ -477,6 +608,10 @@ export function GameCanvas({
                 enemy: EnemyEntity,
             ) {
                 if (graphic instanceof Sprite) {
+                    return;
+                }
+
+                if (!(graphic instanceof Graphics)) {
                     return;
                 }
 
@@ -546,12 +681,13 @@ export function GameCanvas({
                     enemy.transform.position.y,
                 );
                 application.stage.addChild(graphic);
-                const healthBar = new Graphics();
+                const healthBar = createHealthBar(56, true);
                 updateHealthBar(
                     healthBar,
                     enemy.health,
                     enemy.maxHealth,
-                    34,
+                    56,
+                    true,
                 );
                 healthBar.position.set(
                     enemy.transform.position.x,
@@ -617,12 +753,17 @@ export function GameCanvas({
                 projectiles = [...projectiles, projectile];
 
                 addProjectileGraphic(projectile, 0xffffff);
+                addMuzzleFlash(
+                    currentPlayer.transform.position,
+                    0xffffff,
+                );
+                playGameSound("cannonFire");
 
                 projectileCooldownRemaining =
                     weaponConfig.cooldownSeconds;
             }
 
-            function fireLateralProjectiles() {
+            function fireLateralProjectiles(side: LateralShootingSide) {
                 if (
                     isGameOver ||
                     currentGameState.status !== "playing" ||
@@ -631,12 +772,12 @@ export function GameCanvas({
                     return;
                 }
 
-                const lateralProjectiles =
-                    createBothLateralProjectiles(
-                        currentPlayer,
-                        lateralWeaponConfig,
-                        `lateral-${crypto.randomUUID()}`,
-                    );
+                const lateralProjectiles = createLateralProjectiles(
+                    currentPlayer,
+                    lateralWeaponConfig,
+                    side,
+                    `lateral-${side}-${crypto.randomUUID()}`,
+                );
 
                 projectiles = [
                     ...projectiles,
@@ -646,6 +787,8 @@ export function GameCanvas({
                 for (const projectile of lateralProjectiles) {
                     addProjectileGraphic(projectile, 0xffd166);
                 }
+                addMuzzleFlash(currentPlayer.transform.position, 0xffd166);
+                playGameSound("broadside");
 
                 lateralProjectileCooldownRemaining =
                     lateralWeaponConfig.cooldownSeconds;
@@ -667,7 +810,9 @@ export function GameCanvas({
                     key === "arrowright" ||
                     event.code === "Space" ||
                     event.code === "ShiftLeft" ||
-                    event.code === "ShiftRight"
+                    event.code === "ShiftRight" ||
+                    key === "q" ||
+                    key === "e"
                 ) {
                     event.preventDefault();
                 }
@@ -685,10 +830,16 @@ export function GameCanvas({
 
                 if (
                     event.code === "ShiftLeft" ||
-                    event.code === "ShiftRight"
+                    event.code === "ShiftRight" ||
+                    key === "q" ||
+                    key === "e"
                 ) {
                     if (!event.repeat) {
-                        fireLateralProjectiles();
+                        fireLateralProjectiles(
+                            key === "q" || event.code === "ShiftLeft"
+                                ? "left"
+                                : "right",
+                        );
                     }
 
                     return;
@@ -780,9 +931,14 @@ export function GameCanvas({
                             fireFrontalProjectile();
                         }
                         break;
-                    case "lateral":
+                    case "fire-left":
                         if (detail.pressed) {
-                            fireLateralProjectiles();
+                            fireLateralProjectiles("left");
+                        }
+                        break;
+                    case "fire-right":
+                        if (detail.pressed) {
+                            fireLateralProjectiles("right");
                         }
                         break;
                 }
@@ -886,13 +1042,18 @@ export function GameCanvas({
 
                 projectiles = [...projectiles, projectile];
                 addProjectileGraphic(projectile, 0x66ccff);
+                addMuzzleFlash(
+                    enemy.transform.position,
+                    0x66ccff,
+                );
+                playGameSound("enemyFire");
             }
 
             function updateShooterPosition(
                 enemy: EnemyEntity,
                 targetPlayer: PlayerEntity,
                 deltaTimeSeconds: number,
-            ): EnemyEntity {
+            ): { enemy: EnemyEntity; steeringSide: SteeringSide } {
                 const deltaX =
                     targetPlayer.transform.position.x -
                     enemy.transform.position.x;
@@ -913,42 +1074,52 @@ export function GameCanvas({
                     distance === 0
                 ) {
                     return {
-                        ...enemy,
-                        velocity: {
-                            x: 0,
-                            y: 0,
+                        enemy: {
+                            ...enemy,
+                            velocity: { x: 0, y: 0 },
+                            transform: {
+                                ...enemy.transform,
+                                rotation: Math.atan2(deltaY, deltaX),
+                            },
                         },
-                        transform: {
-                            ...enemy.transform,
-                            rotation: Math.atan2(deltaY, deltaX),
-                        },
+                        steeringSide: 0,
                     };
                 }
 
-                const directionX = deltaX / distance;
-                const directionY = deltaY / distance;
+                const steering = calculateEnemySteering(
+                    enemy,
+                    targetPlayer,
+                    islands,
+                    deltaTimeSeconds,
+                    15,
+                    enemySteeringSides.get(enemy.id) ?? 0,
+                );
 
                 return {
-                    ...enemy,
-                    velocity: {
-                        x: directionX * enemy.movementSpeed,
-                        y: directionY * enemy.movementSpeed,
-                    },
-                    transform: {
-                        position: {
-                            x:
-                                enemy.transform.position.x +
-                                directionX *
-                                    enemy.movementSpeed *
-                                    deltaTimeSeconds,
-                            y:
-                                enemy.transform.position.y +
-                                directionY *
-                                    enemy.movementSpeed *
-                                    deltaTimeSeconds,
+                    enemy: {
+                        ...enemy,
+                        velocity: steering.velocity,
+                        transform: {
+                            ...enemy.transform,
+                            position: {
+                                x: enemy.transform.position.x +
+                                    steering.velocity.x *
+                                        deltaTimeSeconds,
+                                y: enemy.transform.position.y +
+                                    steering.velocity.y *
+                                        deltaTimeSeconds,
+                            },
+                            rotation: rotateTowards(
+                                enemy.transform.rotation,
+                                Math.atan2(
+                                    steering.velocity.y,
+                                    steering.velocity.x,
+                                ),
+                                (enemy.rotationSpeed ?? 0) * deltaTimeSeconds,
+                            ),
                         },
-                        rotation: Math.atan2(deltaY, deltaX),
                     },
+                    steeringSide: steering.side,
                 };
             }
 
@@ -1004,7 +1175,7 @@ export function GameCanvas({
                 );
             };
 
-            application.ticker.add((ticker) => {
+            const updateGame = (ticker: Ticker) => {
                 if (isGameOver) {
                     return;
                 }
@@ -1013,7 +1184,10 @@ export function GameCanvas({
                     return;
                 }
 
-                const deltaTimeSeconds = ticker.deltaMS / 1000;
+    const deltaTimeSeconds = Math.min(
+        ticker.deltaMS / 1000,
+        0.1,
+    );
 
                 currentGameState = updateGameTime(
                     currentGameState,
@@ -1022,7 +1196,7 @@ export function GameCanvas({
                 );
 
                 if (currentGameState.status === "finished") {
-                    endCurrentGame();
+                    endCurrentGame("timeout");
                     return;
                 }
 
@@ -1096,24 +1270,38 @@ export function GameCanvas({
 
                 for (const enemy of spawnedEnemies) {
                     if (enemy.type === "chaser") {
-                        const nextEnemy = updateEnemyPosition(
+                        const steering = calculateEnemySteering(
                             enemy,
                             currentPlayer,
+                            islands,
                             deltaTimeSeconds,
+                            16,
+                            enemySteeringSides.get(enemy.id) ?? 0,
                         );
-                        const isBlockedByIsland = islands.some((island) =>
-                            isEnemyCollidingWithIsland(
-                                nextEnemy,
-                                island,
-                                16,
-                            ),
-                        );
-                        const resolvedEnemy = isBlockedByIsland
-                            ? {
-                                  ...enemy,
-                                  velocity: { x: 0, y: 0 },
-                              }
-                            : nextEnemy;
+                        enemySteeringSides.set(enemy.id, steering.side);
+                        const resolvedEnemy: EnemyEntity = {
+                            ...enemy,
+                            velocity: steering.velocity,
+                            transform: {
+                                ...enemy.transform,
+                                position: {
+                                    x: enemy.transform.position.x +
+                                        steering.velocity.x *
+                                            deltaTimeSeconds,
+                                    y: enemy.transform.position.y +
+                                        steering.velocity.y *
+                                            deltaTimeSeconds,
+                                },
+                                rotation: rotateTowards(
+                                    enemy.transform.rotation,
+                                    Math.atan2(
+                                        steering.velocity.y,
+                                        steering.velocity.x,
+                                    ),
+                                    (enemy.rotationSpeed ?? 0) * deltaTimeSeconds,
+                                ),
+                            },
+                        };
                         const enemyGraphic =
                             spawnedEnemyGraphics.get(enemy.id);
                         const isColliding = areEntitiesColliding(
@@ -1145,6 +1333,7 @@ export function GameCanvas({
                             );
                             playerDamageFlashRemaining = 0.2;
                             addImpactEffect(resolvedEnemy.transform.position);
+                            playGameSound("collision");
                             spawnedEnemyContactCooldowns.set(
                                 enemy.id,
                                 chaserContactCooldownSeconds,
@@ -1157,6 +1346,7 @@ export function GameCanvas({
                             spawnedEnemyContactCooldowns.delete(
                                 enemy.id,
                             );
+                            enemySteeringSides.delete(enemy.id);
                             spawnedEnemies = spawnedEnemies.filter(
                                 (candidate) =>
                                     candidate.id !== enemy.id,
@@ -1191,20 +1381,16 @@ export function GameCanvas({
                         continue;
                     }
 
-                    const nextEnemy = updateShooterPosition(
+                    const shooterMovement = updateShooterPosition(
                         enemy,
                         currentPlayer,
                         deltaTimeSeconds,
                     );
-                    const isBlockedByIsland = islands.some((island) =>
-                        isEnemyCollidingWithIsland(nextEnemy, island, 15),
+                    const resolvedEnemy = shooterMovement.enemy;
+                    enemySteeringSides.set(
+                        enemy.id,
+                        shooterMovement.steeringSide,
                     );
-                    const resolvedEnemy = isBlockedByIsland
-                        ? {
-                              ...enemy,
-                              velocity: { x: 0, y: 0 },
-                          }
-                        : nextEnemy;
                     const enemyGraphic = spawnedEnemyGraphics.get(
                         enemy.id,
                     );
@@ -1262,7 +1448,7 @@ export function GameCanvas({
                 }
 
                 if (isPlayerDefeated(currentPlayer)) {
-                    endCurrentGame();
+                    endCurrentGame("defeat");
 
                     console.log("Game over");
 
@@ -1306,6 +1492,8 @@ export function GameCanvas({
                             projectile.damage,
                         );
                         removeProjectile(projectile.id);
+                        addImpactEffect(enemy.transform.position);
+                        playGameSound("impact");
 
                         spawnedEnemies = spawnedEnemies.map(
                             (candidate) =>
@@ -1326,6 +1514,7 @@ export function GameCanvas({
                                 enemy.id,
                             );
                             spawnedShooterCooldowns.delete(enemy.id);
+                            enemySteeringSides.delete(enemy.id);
                             spawnedEnemies = spawnedEnemies.filter(
                                 (candidate) =>
                                     candidate.id !== enemy.id,
@@ -1333,7 +1522,12 @@ export function GameCanvas({
                             currentScore = addEnemyDefeatScore(
                                 currentScore,
                             );
-                            addImpactEffect(enemy.transform.position);
+                            addImpactEffect(
+                                enemy.transform.position,
+                                26,
+                                0xff6b6b,
+                            );
+                            playGameSound("explosion");
                         } else {
                             const healthBar = enemyHealthBars.get(enemy.id);
                             if (healthBar) {
@@ -1341,7 +1535,7 @@ export function GameCanvas({
                                     healthBar,
                                     damagedEnemy.health,
                                     damagedEnemy.maxHealth,
-                                    34,
+                                    56,
                                 );
                             }
                         }
@@ -1366,6 +1560,12 @@ export function GameCanvas({
                         projectile.damage,
                     );
                     playerDamageFlashRemaining = 0.2;
+                    addImpactEffect(
+                        currentPlayer.transform.position,
+                        20,
+                        0x66ccff,
+                    );
+                    playGameSound("impact");
 
                     console.log(
                         `Player hit by enemy projectile. Health: ${currentPlayer.health}`,
@@ -1376,7 +1576,7 @@ export function GameCanvas({
                 }
 
                 if (isPlayerDefeated(currentPlayer)) {
-                    endCurrentGame();
+                    endCurrentGame("defeat");
 
                     console.log("Game over");
 
@@ -1438,7 +1638,38 @@ export function GameCanvas({
                         impactEffects.delete(effectId);
                     }
                 }
-            });
+            };
+
+            application.ticker.add(updateGame);
+            removeGameTicker = () => {
+                application.ticker.remove(updateGame);
+                removeGameTicker = () => undefined;
+            };
+
+            cleanupGameResources = () => {
+                for (const graphic of projectileGraphics.values()) {
+                    graphic.destroy();
+                }
+                for (const graphic of spawnedEnemyGraphics.values()) {
+                    graphic.destroy();
+                }
+                for (const graphic of enemyHealthBars.values()) {
+                    graphic.destroy();
+                }
+                for (const effect of impactEffects.values()) {
+                    effect.graphic.destroy();
+                }
+
+                projectileGraphics.clear();
+                spawnedEnemyGraphics.clear();
+                enemyHealthBars.clear();
+                impactEffects.clear();
+                spawnedEnemyContactCooldowns.clear();
+                spawnedShooterCooldowns.clear();
+                enemySteeringSides.clear();
+                projectiles = [];
+                spawnedEnemies = [];
+            };
         }
 
         void initializeGame();
@@ -1446,12 +1677,15 @@ export function GameCanvas({
         return () => {
             isMounted = false;
 
+            removeGameTicker();
             removeKeyboardListeners();
             removePauseListeners();
             removeResizeObserver();
+            cleanupGameResources();
+            stopGameSounds();
 
             if (isInitialized) {
-                application.destroy(true);
+                destroyApplication();
             }
         };
     }, [config]);
