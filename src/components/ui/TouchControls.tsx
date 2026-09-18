@@ -56,6 +56,7 @@ function TouchButton({ action, label, icon, hold = true }: TouchButtonProps) {
             className="touch-controls__button"
             type="button"
             aria-label={label}
+            onContextMenu={(event) => event.preventDefault()}
             onPointerDown={(event) => {
                 event.preventDefault();
                 event.currentTarget.setPointerCapture(event.pointerId);
@@ -75,7 +76,12 @@ function TouchButton({ action, label, icon, hold = true }: TouchButtonProps) {
                 }
             }}
         >
-            <img src={icon} alt="" aria-hidden="true" />
+            <img
+                src={icon}
+                alt=""
+                aria-hidden="true"
+                draggable={false}
+            />
             <span className="touch-controls__label">{label}</span>
         </button>
     );
